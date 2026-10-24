@@ -86,6 +86,9 @@ test("CSV handles quotes, commas, newlines, and round-trips", () => {
   const encoded = toCsv(rows);
   assert.deepEqual(parseCsv(encoded), rows);
   assert.deepEqual(rowsToObjects(parseCsv(encoded)), [{ __row: 2, email: "a@example.com", fullName: 'Jane "J" Doe', note: "first line\nsecond line, ok" }]);
+  assert.throws(() => parseCsv('name,"unterminated'), /unterminated quoted field/i);
+  assert.throws(() => parseCsv('name,value\nJane,"quoted"tail'), /after closing quote/i);
+  assert.throws(() => parseCsv("a\n1\n2", { maxRows: 2 }), /limited to 2 rows/i);
 });
 
 test("date helpers reject malformed dates and count ranges", () => {
