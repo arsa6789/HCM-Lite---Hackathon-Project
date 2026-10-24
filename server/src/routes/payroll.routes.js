@@ -21,6 +21,7 @@ router.get("/runs", authorizeRoles(ROLES.ADMIN, ROLES.HR), getRuns);
 router.get("/runs/:id", authorizeRoles(ROLES.ADMIN, ROLES.HR), getRunById);
 router.post("/runs/:id/finalize", authorizeRoles(ROLES.ADMIN), postFinalize);
 router.delete("/runs/:id", authorizeRoles(ROLES.ADMIN, ROLES.HR), deleteRunById);
+router.get("/payslip/:runId/:userId.pdf", getPayslipPdf);
 router.get("/runs/:id/payslips/:userId", getPayslipPdf);
 router.get("/mine", getMine);
 

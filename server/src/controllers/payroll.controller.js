@@ -46,8 +46,9 @@ export const getMine = asyncHandler(async (req, res) => {
 });
 
 export const getPayslipPdf = asyncHandler(async (req, res) => {
-  const pdf = await payslipPdf(req.user, req.params.id, req.params.userId);
+  const runId = req.params.runId ?? req.params.id;
+  const pdf = await payslipPdf(req.user, runId, req.params.userId);
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="payslip-${req.params.id}.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="payslip-${runId}.pdf"`);
   res.send(pdf);
 });

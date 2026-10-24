@@ -270,6 +270,10 @@ export async function leaveSummaryForAi(actor, { from, to } = {}) {
 
   const filter = { status: LEAVE_STATUS.PENDING };
 
+  if (actor.role === ROLES.HR) {
+    filter.userId = { $in: await User.find({ role: ROLES.EMPLOYEE }).distinct("_id") };
+  }
+
   if (from && isValidDayKey(from)) {
     filter.toDate = { ...filter.toDate, $gte: from };
   }
@@ -279,8 +283,12 @@ export async function leaveSummaryForAi(actor, { from, to } = {}) {
   }
 
   const pending = await LeaveApplication.countDocuments(filter);
+  const approvedMatch = { status: LEAVE_STATUS.APPROVED };
+  if (actor.role === ROLES.HR) {
+    approvedMatch.userId = { $in: await User.find({ role: ROLES.EMPLOYEE }).distinct("_id") };
+  }
   const byType = await LeaveApplication.aggregate([
-    { $match: { status: LEAVE_STATUS.APPROVED } },
+    { $match: approvedMatch },
     { $group: { _id: "$leaveTypeId", approvedDays: { $sum: "$days" } } },
   ]);
   const types = await LeaveType.find().lean();

@@ -14,6 +14,4 @@ const auditLogSchema = new mongoose.Schema({
   hash: { type: String, required: true },
 }, { versionKey: false });
 
-auditLogSchema.index({ seq: 1 });
-
 export default mongoose.models.AuditLog || mongoose.model("AuditLog", auditLogSchema);

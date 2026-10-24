@@ -64,6 +64,7 @@ async function visibleAnnouncements(actor) {
 
 async function employeeSummary(actor, range) {
   const org = await getOrg();
+  const todayKey = dayKey(new Date());
   const records = await Attendance.find({
     userId: actor.id,
     date: { $gte: range.fromKey, $lte: range.toKey },
@@ -100,17 +101,23 @@ async function employeeSummary(actor, range) {
   });
 
   const balances = await balancesFor(actor, actor.id, String(new Date().getFullYear()));
+  const todayRecord = await Attendance.findOne({ userId: actor.id, date: todayKey }).lean();
 
   const trend = [];
   for (const key of eachDayKey(range.fromKey, range.toKey).slice(-30)) {
     const record = records.find((r) => r.date === key);
+    const rate = record?.status === ATTENDANCE_STATUS.HALF_DAY
+      ? 50
+      : [ATTENDANCE_STATUS.PRESENT, ATTENDANCE_STATUS.LATE].includes(record?.status)
+        ? 100
+        : 0;
     trend.push({
       date: key,
-      rate: record ? 100 : 0,
+      rate,
       present: record?.status === ATTENDANCE_STATUS.PRESENT ? 1 : 0,
       late: record?.status === ATTENDANCE_STATUS.LATE ? 1 : 0,
       halfDay: record?.status === ATTENDANCE_STATUS.HALF_DAY ? 1 : 0,
-      absent: !record ? 1 : 0,
+      absent: !record || record.status === ATTENDANCE_STATUS.ABSENT ? 1 : 0,
     });
   }
 
@@ -125,6 +132,10 @@ async function employeeSummary(actor, range) {
     weeklyTargetHours: 40,
     lateThisMonth,
     pendingRequests,
+    today: {
+      status: todayRecord?.status ?? "absent",
+      workedMinutes: todayRecord?.workedMinutes ?? 0,
+    },
     leave: { balances },
     trend,
     announcements: await visibleAnnouncements(actor),
@@ -133,6 +144,7 @@ async function employeeSummary(actor, range) {
 
 async function orgSummary(actor, range, departmentId) {
   const org = await getOrg();
+  const todayKey = dayKey(new Date());
   const baseFilter = { ...scopeFilter(actor), employmentStatus: EMPLOYMENT_STATUS.ACTIVE };
   const userFilter = departmentId ? { ...baseFilter, departmentId } : baseFilter;
 
@@ -162,7 +174,27 @@ async function orgSummary(actor, range, departmentId) {
   const lateMinutes = records.reduce((sum, r) => sum + (r.minutesLate ?? 0), 0);
   const workedHours = round1(records.reduce((sum, r) => sum + (r.workedMinutes ?? 0), 0) / 60);
 
-  const pendingLeaves = await LeaveApplication.countDocuments({ status: LEAVE_STATUS.PENDING });
+  const scopedEmployeeIds = actor.role === ROLES.HR
+    ? users.map((user) => user._id)
+    : undefined;
+  const pendingLeaveFilter = { status: LEAVE_STATUS.PENDING };
+  if (scopedEmployeeIds) pendingLeaveFilter.userId = { $in: scopedEmployeeIds };
+  const pendingLeaves = await LeaveApplication.countDocuments(pendingLeaveFilter);
+  const todayWorking = org && (await workingDaysBetween(org, todayKey, todayKey)).length > 0;
+  const todayRecords = todayWorking
+    ? await Attendance.find({ userId: { $in: userIds }, date: todayKey }).lean()
+    : [];
+  const todayStatuses = todayRecords.reduce((result, record) => {
+    result[record.status] = (result[record.status] ?? 0) + 1;
+    return result;
+  }, {});
+  const todayCounts = {
+    present: todayStatuses[ATTENDANCE_STATUS.PRESENT] ?? 0,
+    late: todayStatuses[ATTENDANCE_STATUS.LATE] ?? 0,
+    halfDay: todayStatuses[ATTENDANCE_STATUS.HALF_DAY] ?? 0,
+    leave: todayStatuses[ATTENDANCE_STATUS.LEAVE] ?? 0,
+  };
+  todayCounts.absent = todayWorking ? Math.max(0, userIds.length - todayRecords.length) : 0;
 
   const departments = await Department.find().lean();
   const departmentCounts = departments.map((department) => ({
@@ -198,8 +230,10 @@ async function orgSummary(actor, range, departmentId) {
   );
 
   const leaveTypes = await LeaveType.find().lean();
+  const approvedLeaveFilter = { status: LEAVE_STATUS.APPROVED };
+  if (scopedEmployeeIds) approvedLeaveFilter.userId = { $in: scopedEmployeeIds };
   const approvedLeave = await LeaveApplication.aggregate([
-    { $match: { status: LEAVE_STATUS.APPROVED } },
+    { $match: approvedLeaveFilter },
     { $group: { _id: "$leaveTypeId", approvedDays: { $sum: "$days" } } },
   ]);
   const leaveByType = approvedLeave.map((row) => ({
@@ -208,6 +242,7 @@ async function orgSummary(actor, range, departmentId) {
   }));
 
   const trend = [];
+  const holidayDays = await getHolidayDays(range.fromKey, range.toKey);
   for (const key of eachDayKey(range.fromKey, range.toKey).slice(-30)) {
     const dayRecords = records.filter((r) => r.date === key);
     const dayCount = {
@@ -216,14 +251,15 @@ async function orgSummary(actor, range, departmentId) {
       halfDay: dayRecords.filter((r) => r.status === ATTENDANCE_STATUS.HALF_DAY).length,
       absent: dayRecords.filter((r) => r.status === ATTENDANCE_STATUS.ABSENT).length,
     };
-    const dayExpected = userIds.length;
+    const isWorkingDay = Boolean(org && !isWeekendKey(key, org.weekendDays) && !holidayDays.has(key));
+    const dayExpected = isWorkingDay ? userIds.length : 0;
     trend.push({
       date: key,
+      isWorkingDay,
       rate: dayExpected > 0 ? round1(((dayCount.present + dayCount.late + 0.5 * dayCount.halfDay) / dayExpected) * 100) : 0,
       ...dayCount,
     });
   }
-
   const result = {
     role: "org",
     range: { from: range.fromKey, to: range.toKey, workingDays: workingDayKeys.length },
@@ -233,16 +269,38 @@ async function orgSummary(actor, range, departmentId) {
     lateRate,
     lateMinutes,
     workedHours,
+    averageHoursWorked: expectedRecords > 0
+      ? round1(records.reduce((sum, record) => sum + (record.workedMinutes ?? 0), 0) / expectedRecords / 60)
+      : 0,
+    today: { date: todayKey, isWorkingDay: todayWorking, ...todayCounts },
     pendingLeaves,
     departments: departmentCounts,
     topLateComers,
     leaveByType,
+    leaveUtilization: leaveTypes.map((type) => {
+      const approvedDays = approvedLeave.find((row) => String(row._id) === String(type._id))?.approvedDays ?? 0;
+      return {
+        leaveTypeId: String(type._id),
+        name: type.name,
+        annualDays: type.annualDays,
+        approvedDays,
+        utilizationRate: type.annualDays > 0 ? round1((approvedDays / (type.annualDays * Math.max(userIds.length, 1))) * 100) : 0,
+      };
+    }),
     trend,
     announcements: await visibleAnnouncements(actor),
   };
 
   if (actor.role === ROLES.ADMIN) {
     const lastRun = await PayrollRun.findOne({ status: "finalized" }).sort({ month: -1 }).lean();
+    const salaryTotals = await User.aggregate([
+      { $match: { role: ROLES.EMPLOYEE, employmentStatus: EMPLOYMENT_STATUS.ACTIVE } },
+      { $group: { _id: null, total: { $sum: { $add: ["$salary.basic", "$salary.allowance"] } }, count: { $sum: 1 } } },
+    ]);
+
+    result.averageSalary = salaryTotals[0]?.count
+      ? round1(salaryTotals[0].total / salaryTotals[0].count)
+      : 0;
 
     if (lastRun) {
       result.payroll = {
@@ -266,6 +324,7 @@ export async function dashboardSummaryForAi(actor, { from, to, departmentId } = 
     return {
       scope: "self",
       attendanceRate: data.attendanceRate,
+      lateMinutes: data.lateMinutes,
       counts: data.counts,
       hoursThisWeek: data.hoursThisWeek,
       lateThisMonth: data.lateThisMonth,

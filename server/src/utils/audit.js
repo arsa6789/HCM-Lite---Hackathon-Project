@@ -15,14 +15,32 @@ export function canonicalAuditEntry(entry) {
     entityId: entry.entityId,
     meta: entry.meta,
     ip: entry.ip,
-    prevHash: entry.prevHash,
   });
 }
 
 export function computeAuditHash(prevHash, entry) {
   return crypto
     .createHash("sha256")
-    .update(canonicalAuditEntry({ ...entry, prevHash }))
+    .update(prevHash)
+    .update(canonicalAuditEntry(entry))
+    .digest("hex");
+}
+
+function computeLegacyAuditHash(prevHash, entry) {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify({
+      seq: entry.seq,
+      at: entry.at,
+      actorId: entry.actorId,
+      actorRole: entry.actorRole,
+      action: entry.action,
+      entity: entry.entity,
+      entityId: entry.entityId,
+      meta: entry.meta,
+      ip: entry.ip,
+      prevHash,
+    }))
     .digest("hex");
 }
 
@@ -65,7 +83,7 @@ export async function verifyAuditChain() {
       return { valid: false, brokenAt: entry.seq, checked: entries.length, reason: "previous hash mismatch" };
     }
 
-    if (entry.hash !== computeAuditHash(prevHash, entry)) {
+    if (entry.hash !== computeAuditHash(prevHash, entry) && entry.hash !== computeLegacyAuditHash(prevHash, entry)) {
       return { valid: false, brokenAt: entry.seq, checked: entries.length, reason: "hash mismatch" };
     }
 

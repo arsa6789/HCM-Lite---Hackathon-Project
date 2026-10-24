@@ -167,6 +167,17 @@ export function validateToolArguments(name, args) {
       return { valid: false, error: `Invalid argument type for ${key}.` };
     }
 
+    if (type === "string") {
+      const maxLength = key === "query" ? 100 : key === "reason" ? 500 : key === "type" ? 100 : 200;
+      if (value.length > maxLength) {
+        return { valid: false, error: `${key} must be at most ${maxLength} characters.` };
+      }
+    }
+
+    if (["userId", "departmentId"].includes(key) && !/^[a-f\d]{24}$/i.test(value)) {
+      return { valid: false, error: `${key} must be a valid identifier.` };
+    }
+
     if ((key === "from" || key === "to" || key === "start" || key === "end") && !isValidDayKey(value)) {
       return { valid: false, error: `${key} must be a valid YYYY-MM-DD date.` };
     }
@@ -247,7 +258,7 @@ export async function executeTool(actor, name, args = {}) {
         const dashboard = await dashboardSummaryForAi(actor, { from: args?.from, to: args?.to });
 
         if (dashboard.scope === "self") {
-          return { lateDays: dashboard.counts.late, lateMinutes: 0 };
+          return { lateDays: dashboard.counts.late, lateMinutes: dashboard.lateMinutes };
         }
 
         return { topLateComers: dashboard.topLateComers };

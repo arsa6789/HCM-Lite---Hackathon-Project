@@ -72,6 +72,7 @@ export async function policySummaryForAi() {
     graceMinutes: org.graceMinutes,
     halfDayHours: org.halfDayHours,
     weekendDays: org.weekendDays,
+    geofence: org.geofence,
     latePolicy: org.latePolicy,
     taxSlabs: org.taxSlabs,
     hraPct: org.hraPct,

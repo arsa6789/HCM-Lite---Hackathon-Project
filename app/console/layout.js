@@ -7,6 +7,7 @@ import { apiRequest, clearToken, getToken } from "../lib/api";
 
 const NAV_ITEMS = [
   ["dashboard", "Overview", ["admin", "hr", "employee"]],
+  ["profile", "My profile", ["admin", "hr", "employee"]],
   ["organization", "Organization", ["admin", "hr"]],
   ["employees", "Employees", ["admin", "hr"]],
   ["attendance", "Attendance", ["admin", "hr", "employee"]],

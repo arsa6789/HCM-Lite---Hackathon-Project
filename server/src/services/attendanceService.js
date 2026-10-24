@@ -374,6 +374,14 @@ export async function attendanceSummaryForAi(actor, { from, to, userId } = {}) {
     throw new ApiError(403, "You can only view your own attendance.");
   }
 
+  if (targetUserId !== actor.id) {
+    const target = await User.findById(targetUserId).select("role").lean();
+
+    if (!target || !canAccessRecord(actor, target)) {
+      throw new ApiError(403, "You do not have access to this user's attendance.");
+    }
+  }
+
   const { summary } = await attendanceSummary(actor, targetUserId, from, to);
   return { userId: targetUserId, ...summary };
 }

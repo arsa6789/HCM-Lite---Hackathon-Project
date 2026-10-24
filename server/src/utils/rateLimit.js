@@ -4,9 +4,12 @@ export function createRateLimiter({ windowMs, max, now = () => Date.now() }) {
   // Sliding window: per-key list of hit timestamps kept sorted oldest first.
   const hits = new Map();
   const MAX_KEYS = 5000;
+  let checks = 0;
 
   function prune(t) {
-    if (hits.size <= MAX_KEYS) {
+    checks += 1;
+
+    if (hits.size <= MAX_KEYS && checks % 100 !== 0) {
       return;
     }
 

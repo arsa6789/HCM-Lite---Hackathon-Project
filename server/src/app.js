@@ -28,7 +28,7 @@ export function createApp() {
         callback(null, !origin || env.corsOrigins.includes(origin));
       },
       credentials: true,
-      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     })
   );
