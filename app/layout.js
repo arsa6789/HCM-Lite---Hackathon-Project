@@ -1,15 +1,14 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "HCM lite",
-  description:
-    "AI-assisted Human Capital Management",
+  title: "HCM lite | Human capital, made clear",
+  description: "A considered workspace for people operations, attendance, leave and payroll.",
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#1e1b4b",
+  themeColor: "#f6f8f5",
 };
 
 export default function RootLayout({ children }) {

@@ -1,188 +1,21 @@
-"use client";
+import Link from "next/link";
 
-import { useState } from "react";
-require('dotenv').config();
+const signals = [
+  { value: "01", label: "People operations" },
+  { value: "02", label: "Attendance & leave" },
+  { value: "03", label: "Payroll controls" },
+];
 
 export default function Home() {
-  const [mode, setMode] = useState("login"); // "login" | "signup"
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null); // { type: "success" | "error", text }
-  const [token, setToken] = useState("");
-
-  const isLogin = mode === "login";
-
-  function switchMode(newMode) {
-    setMode(newMode);
-    setMessage(null);
-    setToken("");
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-    setToken("");
-
-    try {
-      const res = await fetch(`/api/${isLogin ? "login" : "signup"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessage({ type: "error", text: data.error || "Something went wrong." });
-        return;
-      }
-
-      setMessage({ type: "success", text: data.message });
-
-      if (isLogin && data.token) {
-        setToken(data.token);
-      }
-
-      if (!isLogin) {
-        // After signup, send them to the login form
-        setPassword("");
-        setMode("login");
-      }
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: "Network error. Check your connection and try again.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-md">
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-white">
-            {isLogin ? "Welcome back" : "Create your account"}
-          </h1>
-          <p className="mt-2 text-sm text-slate-300">
-            {isLogin
-              ? "Log in to continue to your dashboard."
-              : "Sign up in seconds and start building."}
-          </p>
-        </div>
-
-        {/* Toggle */}
-        <div className="mb-6 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/60 p-1">
-          <button
-            type="button"
-            onClick={() => switchMode("login")}
-            className={`rounded-lg py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
-              isLogin
-                ? "bg-indigo-500 text-white shadow"
-                : "text-slate-300 hover:text-white"
-            }`}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode("signup")}
-            className={`rounded-lg py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
-              !isLogin
-                ? "bg-indigo-500 text-white shadow"
-                : "text-slate-300 hover:text-white"
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1 block text-sm font-medium text-slate-200"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-lg border border-white/10 bg-slate-900/60 px-4 py-2.5 text-white placeholder-slate-500 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-1 block text-sm font-medium text-slate-200"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete={isLogin ? "current-password" : "new-password"}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              className="w-full rounded-lg border border-white/10 bg-slate-900/60 px-4 py-2.5 text-white placeholder-slate-500 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-indigo-500 py-2.5 font-semibold text-white transition hover:bg-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Please wait..." : isLogin ? "Log In" : "Create Account"}
-          </button>
-        </form>
-
-        {/* Messages */}
-        {message && (
-          <div
-            role="alert"
-            className={`mt-5 rounded-lg border px-4 py-3 text-sm ${
-              message.type === "success"
-                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
-                : "border-red-400/30 bg-red-500/10 text-red-300"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        {/* Token display */}
-        {token && (
-          <div className="mt-4">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-              Your JWT token
-            </p>
-            <textarea
-              readOnly
-              value={token}
-              rows={4}
-              onFocus={(e) => e.target.select()}
-              className="w-full resize-none rounded-lg border border-white/10 bg-slate-900/80 p-3 font-mono text-xs text-indigo-200 outline-none"
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              The same token is also stored in a secure httpOnly cookie.
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
-  );
+  return <main className="landing-page">
+    <header className="landing-nav"><Link href="/" className="brand-lockup"><span className="brand-symbol">H</span><span>HCM <b>lite</b></span></Link><nav><a href="#platform">Platform</a><a href="#principles">Principles</a><Link className="nav-login" href="/login">Sign in <span>↗</span></Link></nav></header>
+    <section className="landing-hero">
+      <div className="hero-grid-lines" aria-hidden="true" />
+      <div className="hero-copy"><div className="eyebrow"><span className="status-dot" /> HUMAN CAPITAL, MADE CLEAR</div><h1>Make work<br /><em>work better.</em></h1><p>One considered workspace for the everyday work of looking after people: from their first day to every payday.</p><div className="hero-actions"><Link href="/login" className="button button-primary">Open your workspace <span>↗</span></Link><a href="#platform" className="text-link">Explore the platform <span>↓</span></a></div><div className="hero-signals">{signals.map((signal) => <div key={signal.value}><b>{signal.value}</b><span>{signal.label}</span></div>)}</div></div>
+      <div className="hero-art" aria-label="Illustration of connected employee records, attendance, leave and payroll modules"><div className="art-backplate"><div className="art-topline"><span>PEOPLE / OPERATIONS</span><span>LIVE VIEW · 09:42</span></div><div className="art-heading">A calmer way<br />to run the day.</div><div className="art-mini-grid"><div className="mini-record"><span className="mini-icon icon-people">P</span><small>TEAM</small><strong>People</strong><span className="mini-number">128 <i>↗</i></span><div className="mini-bars"><i /><i /><i /><i /><i /><i /><i /></div></div><div className="mini-record record-amber"><span className="mini-icon icon-clock">◷</span><small>TODAY</small><strong>Attendance</strong><span className="mini-number">94.6<i>%</i></span><div className="mini-track"><i /></div></div><div className="mini-record record-coral"><span className="mini-icon icon-leave">↗</span><small>IN REVIEW</small><strong>Leave requests</strong><span className="mini-number">06 <i>pending</i></span><div className="mini-track"><i /></div></div><div className="mini-record record-dark"><span className="mini-icon icon-pay">▤</span><small>PAY PERIOD</small><strong>Payroll</strong><span className="mini-number">Oct <i>2026</i></span><div className="mini-track"><i /></div></div></div><div className="art-footer"><span><i className="status-dot" /> All systems in view</span><span>HCM LITE / 001</span></div></div><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-index">A WORKSPACE FOR PEOPLE TEAMS <span>↘</span></div></div>
+    </section>
+    <section className="landing-band" id="platform"><div className="band-label">01 / THE PLATFORM</div><div><h2>People work is connected.<br /><em>Your tools should be too.</em></h2><p>Keep the daily signals in one place: clear records, fair processes, and useful visibility for every role.</p></div><div className="feature-list"><article><b>01</b><h3>See the whole picture</h3><p>Bring headcount, attendance, leave, and updates into one dependable view.</p></article><article><b>02</b><h3>Keep decisions grounded</h3><p>Role-aware access and auditable workflows help protect sensitive information.</p></article><article><b>03</b><h3>Give time back</h3><p>Reduce repetitive admin across employee records, approvals, and payroll preparation.</p></article></div></section>
+    <section className="principles-band" id="principles"><div className="principle-mark">H<span>.</span></div><div><div className="band-label">02 / BUILT FOR TRUST</div><h2>People data deserves<br />careful handling.</h2><p>Access follows responsibility. Sensitive salary data stays restricted. Administrative changes leave an auditable trail.</p></div><Link href="/login" className="button button-dark">Sign in to HCM lite <span>↗</span></Link></section>
+    <footer className="landing-footer"><Link href="/" className="brand-lockup"><span className="brand-symbol">H</span><span>HCM <b>lite</b></span></Link><span>Human capital, made clear.</span><span>© HCM lite 2026</span></footer>
+  </main>;
 }

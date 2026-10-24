@@ -1,20 +1,29 @@
 {
   "name": "my-hackathon-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "clean": "rm -rf .next",
+    "api": "npm --prefix server run dev",
+    "api:online": "npm --prefix server run dev:online",
+    "api:start": "npm --prefix server run start",
+    "api:start:online": "npm --prefix server run start:online",
+    "api:seed": "npm --prefix server run seed",
+    "api:seed:online": "npm --prefix server run seed:online",
+    "api:test": "npm --prefix server test",
+    "db:start": "npm --prefix server run db:start",
+    "db:stop": "npm --prefix server run db:stop",
+    "db:status": "npm --prefix server run db:status"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^18.0.9",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.9.0",
+    "date-fns": "^4.4.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
