@@ -4,14 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthForm from "../components/AuthForm";
-import { setToken } from "../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState("login");
 
   function handleAuthenticated(data) {
-    setToken(data.token);
     router.replace("/console/dashboard");
   }
 

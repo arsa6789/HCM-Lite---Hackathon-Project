@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { apiRequest } from "../lib/api";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { authPersistenceReady, firebaseAuth, firebaseConfigured } from "../lib/firebase";
+import { setToken } from "../lib/api";
 
 export default function AuthForm({ onAuthenticated, mode: externalMode, setMode: setExternalMode }) {
   const [localMode, setLocalMode] = useState("login");
@@ -23,13 +25,20 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
     setLoading(true);
     setMessage(null);
     try {
+      if (!firebaseConfigured || !firebaseAuth) {
+        throw new Error("Firebase is not configured. Add the NEXT_PUBLIC_FIREBASE_* settings to .env.local.");
+      }
+      await authPersistenceReady;
       if (isLogin) {
-        const data = await apiRequest("/auth/login", { method: "POST", body: { email, password }, token: "" });
-        onAuthenticated(data);
+        const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+        setToken(credential.user.uid);
+        onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
         return;
       }
-      const data = await apiRequest("/auth/signup", { method: "POST", body: { email, password }, token: "" });
-      setMessage({ type: "success", text: data.message });
+      const credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      setToken(credential.user.uid);
+      onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
+      setMessage({ type: "success", text: "Account created. Your workspace is ready." });
       setMode("login");
       setPassword("");
     } catch (error) {

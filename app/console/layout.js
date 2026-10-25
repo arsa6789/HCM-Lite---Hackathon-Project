@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiRequest, clearToken, getToken } from "../lib/api";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { firebaseAuth } from "../lib/firebase";
 
 const NAV_ITEMS = [
   ["dashboard", "Overview", ["admin", "hr", "employee"]],
@@ -29,15 +31,21 @@ export default function ConsoleLayout({ children }) {
 
   useEffect(() => {
     let active = true;
-    async function restore() {
-      if (!getToken()) {
+    if (!firebaseAuth) {
+      setBusy(false);
+      router.replace("/login");
+      return () => { active = false; };
+    }
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (authUser) => {
+      if (!authUser) {
+        if (active) setBusy(false);
         router.replace("/login");
         return;
       }
       try {
-        const session = await apiRequest("/auth/me");
         if (active) {
-          setUser(session.user);
+          const session = { id: authUser.uid, email: authUser.email, role: "employee" };
+          setUser(session);
           const notificationData = await apiRequest("/notifications?limit=8");
           setNotifications(notificationData);
         }
@@ -47,13 +55,12 @@ export default function ConsoleLayout({ children }) {
       } finally {
         if (active) setBusy(false);
       }
-    }
-    restore();
-    return () => { active = false; };
+    });
+    return () => { active = false; unsubscribe(); };
   }, [router]);
 
   async function logout() {
-    try { await apiRequest("/auth/logout", { method: "POST" }); } catch {}
+    try { await signOut(firebaseAuth); } catch {}
     clearToken();
     router.replace("/login");
   }
