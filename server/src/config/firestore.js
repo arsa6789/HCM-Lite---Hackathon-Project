@@ -11,6 +11,12 @@ let firestoreInstance;
 export function getFirestoreDb() {
   if (firestoreInstance) return firestoreInstance;
 
+  if (!env.firebaseProjectId) {
+    throw new Error(
+      "FIREBASE_PROJECT_ID is required. Add it to the API deployment environment."
+    );
+  }
+
   const adcPath = process.env.CLOUDSDK_CONFIG
     ? join(process.env.CLOUDSDK_CONFIG, "application_default_credentials.json")
     : join(homedir(), ".config", "gcloud", "application_default_credentials.json");

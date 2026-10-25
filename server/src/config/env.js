@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url";
 dotenv.config({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
 
 const nodeEnv = process.env.NODE_ENV ?? "development";
-const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim();
-
-if (!firebaseProjectId) {
-  throw new Error("FIREBASE_PROJECT_ID is required. Set it in server/.env.");
-}
+// Do not throw while this module is being imported. On serverless platforms that
+// would crash the function before Express has a chance to add CORS headers (or
+// return a useful JSON error). Firebase configuration is checked at the point
+// where the Admin SDK is first needed instead.
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim() ?? "";
 
 const port = Number(process.env.PORT ?? 4000);
 

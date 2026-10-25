@@ -25,18 +25,28 @@ export function createApp() {
   app.use(
     cors({
       origin(origin, callback) {
+        // Requests without Origin are server-to-server requests, curl, and
+        // health checks. Browser requests must exactly match an allowlisted
+        // frontend origin; this keeps Bearer-token API access from being
+        // exposed to arbitrary sites.
         callback(null, !origin || env.corsOrigins.includes(origin));
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
+      maxAge: 86_400,
+      optionsSuccessStatus: 204,
     })
   );
 
   app.use(express.json({ limit: "1mb" }));
 
   app.get(["/health", "/api/health"], (req, res) => {
-    res.json({ status: "ok", uptime: process.uptime() });
+    res.json({
+      status: "ok",
+      uptime: process.uptime(),
+      firebaseConfigured: Boolean(env.firebaseProjectId),
+    });
   });
 
   app.use("/api", rateLimit({ windowMs: 60_000, max: 300 }), routes);
