@@ -63,7 +63,11 @@ export function createApp() {
   return app;
 }
 
-// Vercel's Node.js runtime loads the default export when it detects this file
-// as a serverless entrypoint. Keep the factory export for the local server and
-// tests, while also exposing a ready-to-handle Express application.
-export default createApp();
+const vercelApp = createApp();
+
+// Keep this as a literal function export. Vercel validates serverless
+// entrypoints and can reject an exported Express callable when it is expressed
+// as a factory call.
+export default function handler(req, res) {
+  return vercelApp(req, res);
+}
