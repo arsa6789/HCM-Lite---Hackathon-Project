@@ -1,6 +1,6 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
-import { assertObjectId } from "../utils/validate.js";
+import { assertDocumentId } from "../utils/validate.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { ROLES } from "../constants/roles.js";
 import { CORRECTION_STATUS } from "../constants/statuses.js";
@@ -74,7 +74,7 @@ export const getBoard = asyncHandler(async (req, res) => {
 });
 
 export const postCorrection = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "attendance id");
+  assertDocumentId(req.params.id, "attendance id");
   const record = await requestCorrection(req.user, req.params.id, {
     reason: sanitizeText(req.body?.reason, 500),
     newCheckInAt: req.body?.newCheckInAt,
@@ -88,7 +88,7 @@ export const postCorrection = asyncHandler(async (req, res) => {
 });
 
 export const patchCorrection = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "attendance id");
+  assertDocumentId(req.params.id, "attendance id");
   const decision = req.body?.decision;
 
   if (![CORRECTION_STATUS.APPROVED, CORRECTION_STATUS.REJECTED].includes(decision)) {

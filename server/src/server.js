@@ -1,9 +1,13 @@
 import { createApp } from "./app.js";
-import { connectDB, disconnectDB } from "./config/db.js";
+import { connectFirestore, disconnectFirestore } from "./config/firestore.js";
 import { env } from "./config/env.js";
+import { pathToFileURL } from "node:url";
+
+const app = createApp();
+export default app;
 
 async function start() {
-  await connectDB();
+  await connectFirestore();
 
   const server = createApp().listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
@@ -12,7 +16,7 @@ async function start() {
   async function shutdown(signal) {
     console.log(`${signal} received, shutting down.`);
     server.close(async () => {
-      await disconnectDB();
+      await disconnectFirestore();
       process.exit(0);
     });
   }
@@ -21,16 +25,16 @@ async function start() {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
-start().catch((error) => {
-  console.error("Failed to start API:", error.message);
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
 
-  if (error.name === "MongooseServerSelectionError" || error.name === "MongoServerSelectionError") {
-    console.error(
-      env.nodeEnv === "production"
-        ? "Check MONGODB_URI_ONLINE and the network access rules of your MongoDB host."
-        : "MongoDB is not reachable. Start a local instance with: npm run db:start"
-    );
-  }
+if (import.meta.url === invokedPath) {
+  start().catch((error) => {
+    console.error("Failed to start API:", error.message);
 
-  process.exit(1);
-});
+    if (error.code === 5 || error.code === 7 || error.code === 16) {
+      console.error("Check Firestore is enabled and Firebase Admin credentials are configured for this project.");
+    }
+
+    process.exit(1);
+  });
+}

@@ -10,4 +10,8 @@ npm-debug.log*
 *.pem
 .vercel
 server/node_modules
+server/service-account*.json
+server/*-firebase-adminsdk-*.json
+server/credentials/*.json
+server/src/service-account.json
 .data/

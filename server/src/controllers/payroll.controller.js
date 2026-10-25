@@ -1,5 +1,5 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { assertObjectId } from "../utils/validate.js";
+import { assertDocumentId } from "../utils/validate.js";
 import { summary } from "../services/dashboardService.js";
 import {
   createRun,
@@ -23,19 +23,19 @@ export const getRuns = asyncHandler(async (req, res) => {
 });
 
 export const getRunById = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "run id");
+  assertDocumentId(req.params.id, "run id");
   res.json({ run: await getRun(req.user, req.params.id) });
 });
 
 export const postFinalize = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "run id");
+  assertDocumentId(req.params.id, "run id");
   const run = await finalizeRun(req.user, req.params.id);
   await audit(req.user, "payroll.finalize", "payroll_run", req.params.id, { month: run.month }, req);
   res.json({ run });
 });
 
 export const deleteRunById = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "run id");
+  assertDocumentId(req.params.id, "run id");
   const result = await deleteRun(req.user, req.params.id);
   await audit(req.user, "payroll.delete", "payroll_run", req.params.id, {}, req);
   res.json(result);

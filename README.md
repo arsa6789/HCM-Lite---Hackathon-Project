@@ -1,101 +1,74 @@
 # HCM lite
 
-HCM lite is a role-aware people operations workspace built with Next.js 15 and React 19. Temporary local-only mode uses Firebase Authentication for email/password sign-in and browser `localStorage` for demo records. The MongoDB-backed Express API remains in `server/`, but is not started by the frontend and the frontend does not call it in this mode.
+HCM lite is a role-aware people operations app with a Next.js frontend and an Express API backed by Firebase Authentication and Cloud Firestore. Firebase Authentication persists browser sessions locally; all HCM records are accessed through the Firestore-backed API.
 
-## Run locally
+## Setup
 
-Prerequisites: Node.js 20+, npm, a Firebase project, and Email/Password enabled under Firebase Authentication providers.
+Install dependencies:
 
 ```bash
 npm install
+npm --prefix server install
 ```
 
-Set the `NEXT_PUBLIC_FIREBASE_*` values in `.env.local` using the Firebase web app configuration, then run:
+Create `server/.env` from `server/.env.example`. Set `FIREBASE_PROJECT_ID` to your Firebase project and configure server credentials with Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service-account JSON file. Never commit that file. Enable Cloud Firestore in the Firebase project.
+
+Set the `NEXT_PUBLIC_FIREBASE_*` variables in root `.env.local` for the browser Firebase app. These are public client configuration values, not server credentials. Enable Email/Password under Firebase Authentication sign-in providers.
+
+Start the frontend and API together:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`. Firebase Authentication persists sessions in browser local storage. New accounts receive employee access. Demo records are stored in the current browser profile only; clearing site data or switching browsers removes or hides them. Do not use this mode for sensitive or production HR data: browser storage and role fields are not a trusted authorization boundary, and data is not shared between users/devices.
+Open http://localhost:3000. The API listens on http://localhost:4000. Stop both services with Ctrl+C. To run only one process, use `npm run dev:web` or `npm run api`.
+
+### Vercel Deployment
+
+Deploy the frontend as one Vercel project from the repository root. Deploy the API as a second Vercel project with **Root Directory** set to `server`. Set the API project's server-only `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` (use a newly rotated service-account JSON), and `CORS_ORIGINS` including the frontend production origin. Set the frontend's `NEXT_PUBLIC_API_URL` to the API deployment URL ending in `/api`. Never use `NEXT_PUBLIC_` for the service-account key, and do not commit service-account JSON files.
+
+Seed an administrator role for an existing Firebase Authentication user:
+
+Root `.env.local` contains the Firebase web app configuration as `NEXT_PUBLIC_FIREBASE_*` plus `NEXT_PUBLIC_API_URL` (the deployed API base ending in `/api`). Web config values are public client configuration, not server credentials. Enable Email/Password under Firebase Authentication sign-in providers.
+```bash
+npm run api:seed
+```
+
+Set `SEED_ADMIN_UID` in `server/.env` before running the command. The API trusts roles from Firebase custom claims; the seeded administrator should sign out and back in to refresh its ID token.
 
 ## Configuration
 
-`.env.local`:
+`server/.env`:
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web app API key (public client configuration) |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase sender ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
-| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Optional Analytics measurement ID; unused by this app |
+| `FIREBASE_PROJECT_ID` | Firebase project containing Firestore |
+| `FIREBASE_DATABASE_ID` | Optional named database; empty uses `(default)` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Optional path to a service-account JSON; ADC/workload identity is preferred on hosted platforms |
+| `PORT` | API port, default 4000 |
+| `CORS_ORIGINS` | Allowed frontend origins |
+| `SEED_ADMIN_UID` | Existing Firebase Auth UID to grant the admin role |
+| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | Optional OpenRouter assistant configuration |
 
-For Vercel, add the same `NEXT_PUBLIC_FIREBASE_*` values in Project Settings → Environment Variables. The Firebase web API key is not a server credential. Configure Firebase Authentication's authorized domains for the deployed site.
+Root `.env.local` contains the Firebase web app configuration as `NEXT_PUBLIC_FIREBASE_*`. Do not put service account credentials, JWT secrets, or AI keys in `NEXT_PUBLIC_*` variables.
 
-The Express API can still be started manually with `npm run api`; it continues to require MongoDB and its separate `server/.env`. It is intentionally not part of `npm run dev` in temporary local-only mode.
+## Data and access
 
-`.env`:
+The Firestore collections are `users`, `organizations`, `departments`, `designations`, `leaveTypes`, `holidays`, `attendance`, `leaveApplications`, `payrollRuns`, `announcements`, `notifications`, `auditLogs`, and `aiLogs`. References are stored as document ID strings. Organization settings use the fixed `organizations/singleton` document. Existing data is not migrated automatically; export and transform it before connecting a production deployment.
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | Legacy API URL; unused by the current local-only frontend |
+The API retains role checks for `admin`, `hr`, and `employee`. Salary serializers restrict amount reads to admin and the employee's own payslip. Firestore Admin SDK access bypasses client security rules, so all authorization must remain enforced in the API. Configure Firestore security rules to deny direct untrusted client access to backend collections unless a deliberate client workflow requires it.
 
-The AI endpoints return a disabled status and chat requests return 503 when `AI_API_KEY` is empty. No key belongs in a `NEXT_PUBLIC_*` variable.
+The frontend does not store HR records in localStorage. It sends Firebase ID tokens to the API, which enforces roles and reads/writes Firestore. Firebase Auth browser persistence stores the login session on the device.
 
-## Roles and sensitive data
-
-- `admin`: company-wide access; the only role that can read salary amounts, review the audit chain, and finalize payroll.
-- `hr`: employee operations and payroll draft preparation; can write salary data but never receives salary/payroll amounts in API serializers, exports, or AI tool results.
-- `employee`: self-service access to their profile, attendance, leave, and finalized personal payslips.
-
-Authentication accepts a Bearer token or the `hcm_token` httpOnly cookie. The server reloads the account for every authenticated request so role updates take effect immediately. Unknown request fields are rejected instead of silently ignored.
-
-## Modules
-
-- Organization settings and admin-managed departments, designations, leave types, and holidays.
-- Employee directory, profile 360, and CSV template/import/export with dry-run validation.
-- Attendance check-in/out, geofencing, working-day rules, corrections, and daily board.
-- Leave balances, requests, manager decisions, and cancellation of pending requests.
-- Payroll draft runs, configurable deductions/tax, admin finalization, personal payslips, and PDF downloads.
-- Role-shaped dashboards, trends, announcements and notifications.
-- Optional AI assistant with scoped tools, validated tool arguments, a maximum three-round tool loop, and confirm-before-submit leave drafts.
-- Admin-only audit entries with a serialized SHA-256 hash chain and verification endpoint.
-
-## Security mechanisms
-
-| Risk | Mechanism |
-|---|---|
-| Password disclosure | bcrypt hashing; password field excluded by default |
-| Role/scope escalation | Server-side authentication, role guards, scoped service queries, rejected unknown fields |
-| Salary exposure to HR | Explicit serializers omit all salary and payroll amounts from HR responses |
-| Repeated login/AI requests | IP-based login/signup limits, global API limit, per-user AI limit |
-| Browser content framing/sniffing | Explicit `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy` headers |
-| AI prompt/tool misuse | Sanitized context, constrained tools, server-validated arguments, authenticated actor passed to services |
-| Audit tampering detection | Append sequence, previous hash, canonical SHA-256 hash, verify endpoint |
-
-The audit queue serializes appends within one server process. Deploy a single API writer or add a distributed sequencing mechanism before running multiple API instances. Hash verification detects edits but does not prevent a privileged database operator from rewriting the entire chain.
-
-## API and commands
-
-The API contract and role-shaped responses are described in [docs/api-contract.md](docs/api-contract.md). The API is rooted at `/api`; liveness is available at `/health` and `/api/health`.
+## Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Next.js development server on port 3000 |
-| `npm run build` | Next.js production build |
-| `npm run api` | Local API with Node watch mode |
-| `npm run api:online` | API with production Mongo selection |
-| `npm run api:seed` | Seed local admin account |
-| `npm run api:test` | Run backend unit/regression tests |
-| `npm run db:start` / `npm run db:stop` | Start/stop project-local MongoDB |
+| `npm run dev` | Start Next.js and the Firebase-backed API together |
+| `npm run dev:web` | Start only Next.js |
+| `npm run api` | Start only the API in watch mode |
+| `npm run api:seed` | Grant the admin role to the configured Firebase Auth UID |
+| `npm run api:test` | Run backend tests |
+| `npm run build` | Build the Next.js production app |
 
-## Verification
-
-```bash
-npm --prefix server test
-npm run build
-```
-
-Business rules and utilities have unit coverage. End-to-end API workflows require a reachable MongoDB instance and configured seed credentials. Do not run `next build` and `next dev` simultaneously against the same `.next` directory; use `npm run clean` if the development manifest becomes stale.
+Run backend tests with `npm --prefix server test`. Firebase-backed integration tests require a configured Firestore emulator or valid Firebase server credentials. No MongoDB or JWT configuration is used by the backend.

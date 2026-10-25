@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { apiRequest, clearToken, getToken } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { firebaseAuth } from "../lib/firebase";
 
@@ -44,13 +44,12 @@ export default function ConsoleLayout({ children }) {
       }
       try {
         if (active) {
-          const session = { id: authUser.uid, email: authUser.email, role: "employee" };
-          setUser(session);
+          const session = await apiRequest("/auth/me");
+          setUser(session.user);
           const notificationData = await apiRequest("/notifications?limit=8");
           setNotifications(notificationData);
         }
       } catch {
-        clearToken();
         router.replace("/login");
       } finally {
         if (active) setBusy(false);
@@ -61,7 +60,6 @@ export default function ConsoleLayout({ children }) {
 
   async function logout() {
     try { await signOut(firebaseAuth); } catch {}
-    clearToken();
     router.replace("/login");
   }
 

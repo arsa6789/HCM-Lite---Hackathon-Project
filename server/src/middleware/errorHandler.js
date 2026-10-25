@@ -9,21 +9,9 @@ export function errorHandler(error, req, res, next) {
   let status = error.status ?? 500;
   let message = error.message ?? "Something went wrong.";
 
-  if (error.name === "CastError") {
-    status = 400;
-    message = "Invalid identifier.";
-  }
-
-  if (error.code === 11000) {
+  if (error.code === 6) {
     status = 409;
-    message = "An account with this email already exists.";
-  }
-
-  if (error.name === "ValidationError") {
-    status = 400;
-    message = Object.values(error.errors)
-      .map((item) => item.message)
-      .join(" ");
+    message = error.message || "A record with a unique value already exists.";
   }
 
   if (error.type === "entity.parse.failed") {

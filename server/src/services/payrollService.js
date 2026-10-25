@@ -15,10 +15,8 @@ import { notifyUsers } from "../utils/notify.js";
 import { buildPayslipPdf } from "../utils/pdf.js";
 import { getOrg } from "./orgService.js";
 import { canAccessRecord } from "../access/scope.js";
-import mongoose from "mongoose";
-
-function assertObjectId(value, field) {
-  if (!mongoose.Types.ObjectId.isValid(value)) {
+function assertDocumentId(value, field) {
+  if (!/^[A-Za-z0-9_-]{1,150}$/.test(String(value ?? ""))) {
     throw new ApiError(400, `Invalid ${field}.`);
   }
 }
@@ -174,7 +172,7 @@ export async function getRun(actor, runId) {
     throw new ApiError(403, "Only admin or HR can view payroll runs.");
   }
 
-  assertObjectId(runId, "run id");
+  assertDocumentId(runId, "run id");
   const run = await PayrollRun.findById(runId).lean();
 
   if (!run) {
@@ -189,7 +187,7 @@ export async function finalizeRun(actor, runId) {
     throw new ApiError(403, "Only an admin can finalize payroll runs.");
   }
 
-  assertObjectId(runId, "run id");
+  assertDocumentId(runId, "run id");
   const run = await PayrollRun.findById(runId);
 
   if (!run) {
@@ -219,7 +217,7 @@ export async function deleteRun(actor, runId) {
     throw new ApiError(403, "Only admin or HR can delete payroll runs.");
   }
 
-  assertObjectId(runId, "run id");
+  assertDocumentId(runId, "run id");
   const run = await PayrollRun.findById(runId);
 
   if (!run) {
@@ -267,8 +265,8 @@ export async function payslipsFor(actor, targetUserId) {
 }
 
 export async function payslipPdf(actor, runId, targetUserId) {
-  assertObjectId(runId, "run id");
-  assertObjectId(targetUserId, "user id");
+  assertDocumentId(runId, "run id");
+  assertDocumentId(targetUserId, "user id");
 
   if (actor.role === ROLES.HR) {
     throw new ApiError(403, "HR cannot download payslip PDFs.");

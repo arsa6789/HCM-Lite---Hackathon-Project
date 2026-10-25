@@ -1,14 +1,12 @@
 import User from "../models/User.js";
 import { ApiError } from "../utils/apiError.js";
-import { readCookie } from "../utils/cookies.js";
-import { env } from "../config/env.js";
-import { verifyToken } from "../utils/tokens.js";
+import { getFirebaseAuth } from "../config/firestore.js";
+import { ROLES } from "../constants/roles.js";
 
 export async function authenticate(req, res, next) {
   try {
     const header = req.headers.authorization ?? "";
-    const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-    const token = bearer || readCookie(req, env.cookieName);
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 
     if (!token) {
       throw new ApiError(401, "Authentication required.");
@@ -17,22 +15,24 @@ export async function authenticate(req, res, next) {
     let payload;
 
     try {
-      payload = verifyToken(token);
+      payload = await getFirebaseAuth().verifyIdToken(token);
     } catch {
       throw new ApiError(401, "Invalid or expired token.");
     }
 
-    const account = await User.findById(payload.sub).lean();
-
-    if (!account) {
-      throw new ApiError(401, "Authentication required.");
+    const role = Object.values(ROLES).includes(payload.role) ? payload.role : ROLES.EMPLOYEE;
+    let account = await User.findById(payload.uid);
+    if (!account) account = await User.create({ _id: payload.uid, email: payload.email ?? "", role });
+    else if (account.role !== role) {
+      account.role = role;
+      await account.save();
     }
 
-    req.account = account;
+    req.account = account.toObject();
     req.user = {
-      id: String(account._id),
-      email: account.email,
-      role: account.role,
+      id: String(payload.uid),
+      email: payload.email ?? account.email,
+      role,
     };
 
     next();

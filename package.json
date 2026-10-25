@@ -3,21 +3,15 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
     "dev:web": "next dev",
     "build": "next build",
     "start": "next start",
     "clean": "rm -rf .next",
     "api": "npm --prefix server run dev",
-    "api:online": "npm --prefix server run dev:online",
     "api:start": "npm --prefix server run start",
-    "api:start:online": "npm --prefix server run start:online",
     "api:seed": "npm --prefix server run seed",
-    "api:seed:online": "npm --prefix server run seed:online",
-    "api:test": "npm --prefix server test",
-    "db:start": "npm --prefix server run db:start",
-    "db:stop": "npm --prefix server run db:stop",
-    "db:status": "npm --prefix server run db:status"
+    "api:test": "npm --prefix server test"
   },
   "dependencies": {
     "date-fns": "^4.4.0",

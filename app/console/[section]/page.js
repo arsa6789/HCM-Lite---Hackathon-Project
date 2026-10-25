@@ -14,8 +14,12 @@ export default function ConsoleSectionPage() {
   useEffect(() => {
     let active = true;
     if (!firebaseAuth) return () => { active = false; };
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (authUser) => {
-      if (active && authUser) setUser({ id: authUser.uid, email: authUser.email, role: "employee" });
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (authUser) => {
+      if (!active || !authUser) return;
+      try {
+        const session = await apiRequest("/auth/me");
+        if (active) setUser(session.user);
+      } catch {}
     });
     return () => { active = false; unsubscribe(); };
   }, []);

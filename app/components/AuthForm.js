@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { authPersistenceReady, firebaseAuth, firebaseConfigured } from "../lib/firebase";
-import { setToken } from "../lib/api";
 
 export default function AuthForm({ onAuthenticated, mode: externalMode, setMode: setExternalMode }) {
   const [localMode, setLocalMode] = useState("login");
@@ -31,12 +30,10 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
       await authPersistenceReady;
       if (isLogin) {
         const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
-        setToken(credential.user.uid);
         onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
         return;
       }
       const credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-      setToken(credential.user.uid);
       onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
       setMessage({ type: "success", text: "Account created. Your workspace is ready." });
       setMode("login");

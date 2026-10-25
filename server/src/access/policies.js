@@ -7,7 +7,7 @@ export const CREATE_FIELDS = Object.freeze({
 });
 
 export const UPDATE_FIELDS = Object.freeze({
-  [ROLES.ADMIN]: ["email", "password", "role", "fullName", "phone", "address", "employeeCode", "departmentId", "designationId", "joinDate", "employmentStatus", "salary"],
+  [ROLES.ADMIN]: ["email", "role", "fullName", "phone", "address", "employeeCode", "departmentId", "designationId", "joinDate", "employmentStatus", "salary"],
   [ROLES.HR]: ["fullName", "phone", "address", "employeeCode", "departmentId", "designationId", "joinDate", "employmentStatus", "salary"],
   [ROLES.EMPLOYEE]: ["fullName", "phone", "address"],
 });

@@ -3,7 +3,7 @@ import Notification from "../models/Notification.js";
 import User from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
-import { assertObjectId } from "../utils/validate.js";
+import { assertDocumentId } from "../utils/validate.js";
 import { sanitizeMultiline, sanitizeText } from "../utils/sanitize.js";
 import { ROLES } from "../constants/roles.js";
 import { audit } from "../utils/audit.js";
@@ -107,7 +107,7 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
   }
 
   if (type === "department") {
-    assertObjectId(req.body?.audience?.departmentId, "audience.departmentId");
+    assertDocumentId(req.body?.audience?.departmentId, "audience.departmentId");
     audience.departmentId = req.body.audience.departmentId;
   }
 
@@ -132,7 +132,7 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
 });
 
 export const updateAnnouncement = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "announcement id");
+  assertDocumentId(req.params.id, "announcement id");
   const announcement = await Announcement.findById(req.params.id);
 
   if (!announcement) {
@@ -162,7 +162,7 @@ export const updateAnnouncement = asyncHandler(async (req, res) => {
 });
 
 export const deleteAnnouncement = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "announcement id");
+  assertDocumentId(req.params.id, "announcement id");
   const announcement = await Announcement.findById(req.params.id);
 
   if (!announcement) {
@@ -206,7 +206,7 @@ export const listNotifications = asyncHandler(async (req, res) => {
 });
 
 export const markRead = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "notification id");
+  assertDocumentId(req.params.id, "notification id");
   const notification = await Notification.findOne({ _id: req.params.id, userId: req.user.id });
 
   if (!notification) {

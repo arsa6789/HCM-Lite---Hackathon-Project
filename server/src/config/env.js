@@ -4,19 +4,10 @@ import { fileURLToPath } from "node:url";
 dotenv.config({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
 
 const nodeEnv = process.env.NODE_ENV ?? "development";
-const isProduction = nodeEnv === "production";
-const mongoKey = isProduction ? "MONGODB_URI_ONLINE" : "MONGODB_URI";
-const required = ["JWT_SECRET", mongoKey];
-const missing = required.filter((key) => !process.env[key]);
+const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim();
 
-if (missing.length > 0) {
-  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
-}
-
-const activeMongoUri = process.env[mongoKey];
-
-if (!/^mongodb(\+srv)?:\/\//.test(activeMongoUri)) {
-  throw new Error(`${mongoKey} must start with mongodb:// or mongodb+srv://`);
+if (!firebaseProjectId) {
+  throw new Error("FIREBASE_PROJECT_ID is required. Set it in server/.env.");
 }
 
 const port = Number(process.env.PORT ?? 4000);
@@ -35,17 +26,13 @@ function parseOrigins(value) {
 export const env = Object.freeze({
   nodeEnv,
   port,
-  mongoUri: process.env.MONGODB_URI ?? "",
-  mongoUriOnline: process.env.MONGODB_URI_ONLINE ?? "",
-  jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
-  cookieName: process.env.COOKIE_NAME ?? "hcm_token",
-  cookieSecure: process.env.COOKIE_SECURE === "true",
-  cookieSameSite: process.env.COOKIE_SAME_SITE ?? "lax",
-  cookieMaxAgeMs: Number(process.env.COOKIE_MAX_AGE_MS ?? 604800000),
+  firebaseProjectId,
+  firebaseDatabaseId: process.env.FIREBASE_DATABASE_ID ?? "",
+  firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? "",
+  firebaseServiceAccountBase64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
+  firebaseServiceAccountPath: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? "",
   corsOrigins: parseOrigins(process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:3001"),
-  seedAdminEmail: process.env.SEED_ADMIN_EMAIL ?? "admin@hcm.local",
-  seedAdminPassword: process.env.SEED_ADMIN_PASSWORD ?? "",
+  seedAdminUid: process.env.SEED_ADMIN_UID ?? "",
   aiApiKey: process.env.AI_API_KEY ?? "",
   aiBaseUrl: process.env.AI_BASE_URL ?? "https://openrouter.ai/api/v1",
   aiModel: process.env.AI_MODEL ?? "meta-llama/llama-3.3-70b-instruct:free",

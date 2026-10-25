@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
+import { getFirebaseAuth } from "../config/firestore.js";
 import User from "../models/User.js";
 import Department from "../models/Department.js";
 import Designation from "../models/Designation.js";
 import { ApiError } from "../utils/apiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { hashPassword } from "../utils/password.js";
 import {
   serializeUser,
   serializeDirectoryUser,
@@ -21,7 +21,7 @@ import {
   assertEmail,
   assertPassword,
   assertRole,
-  assertObjectId,
+  assertDocumentId,
   escapeRegex,
   normalizeEmail,
   parsePagination,
@@ -54,7 +54,7 @@ function buildProfileUpdates(picked) {
     if (picked.departmentId === null || picked.departmentId === "") {
       updates.departmentId = null;
     } else {
-      assertObjectId(picked.departmentId, "departmentId");
+      assertDocumentId(picked.departmentId, "departmentId");
       updates.departmentId = picked.departmentId;
     }
   }
@@ -63,7 +63,7 @@ function buildProfileUpdates(picked) {
     if (picked.designationId === null || picked.designationId === "") {
       updates.designationId = null;
     } else {
-      assertObjectId(picked.designationId, "designationId");
+      assertDocumentId(picked.designationId, "designationId");
       updates.designationId = picked.designationId;
     }
   }
@@ -148,7 +148,7 @@ export const listUsers = asyncHandler(async (req, res) => {
 });
 
 export const getUser = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "user id");
+  assertDocumentId(req.params.id, "user id");
   const result = await getProfile360(req.user, req.params.id);
   res.json({ ...result, scope: resolveScope(req.user) });
 });
@@ -178,34 +178,37 @@ export const createUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "An account with this email already exists.");
   }
 
-  const user = await User.create({
-    email,
-    password: await hashPassword(password),
-    role,
-    ...updates,
-    salary,
-  });
+  let authUser;
+  try {
+    authUser = await getFirebaseAuth().createUser({ email, password, displayName: updates.fullName || undefined });
+    await getFirebaseAuth().setCustomUserClaims(authUser.uid, { role });
+    const user = await User.create({ _id: authUser.uid, email, role, ...updates, salary });
 
-  await audit(req.user, "user.create", "user", String(user._id), { after: serializeProfile(user.toObject(), req.user) }, req);
-  await notifyUsers([user._id], {
-    title: "Welcome to HCM Lite",
-    body: "Your account has been created.",
-    type: "system",
-  });
+    await audit(req.user, "user.create", "user", String(user._id), { after: serializeProfile(user.toObject(), req.user) }, req);
+    await notifyUsers([user._id], {
+      title: "Welcome to HCM Lite",
+      body: "Your account has been created.",
+      type: "system",
+    });
 
-  res.status(201).json({
-    message: "User created.",
-    user: serializeDirectoryUser(user.toObject(), req.user),
-  });
+    return res.status(201).json({
+      message: "User created.",
+      user: serializeDirectoryUser(user.toObject(), req.user),
+    });
+  } catch (error) {
+    if (authUser) await getFirebaseAuth().deleteUser(authUser.uid).catch(() => {});
+    if (error.code === "auth/email-already-exists") throw new ApiError(409, "An account with this email already exists.");
+    throw error;
+  }
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "user id");
+  assertDocumentId(req.params.id, "user id");
   const payload = req.body ?? {};
   const target = req.targetUser;
   const isSelf = String(target._id) === req.user.id;
   const baseFields = UPDATE_FIELDS[req.user.role] ?? [];
-  const allowed = isSelf ? Array.from(new Set([...baseFields, "password"])) : baseFields;
+  const allowed = baseFields;
 
   if (req.user.role === ROLES.HR && !isSelf && target.role !== ROLES.EMPLOYEE) {
     throw new ApiError(403, "HR can only update employee accounts.");
@@ -219,7 +222,7 @@ export const updateUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "No fields to update.");
   }
 
-  const user = await User.findById(target._id).select("+password");
+  const user = await User.findById(target._id);
 
   if (!user) {
     throw new ApiError(404, "User not found.");
@@ -232,6 +235,18 @@ export const updateUser = asyncHandler(async (req, res) => {
   const before = serializeProfile(user.toObject(), req.user);
   const updates = buildProfileUpdates(picked);
 
+  if (updates.email !== undefined || updates.fullName !== undefined) {
+    await getFirebaseAuth().updateUser(String(user._id), {
+      ...(updates.email !== undefined ? { email: updates.email } : {}),
+      ...(updates.fullName !== undefined ? { displayName: updates.fullName } : {}),
+    });
+  }
+
+  if (updates.role !== undefined && updates.role !== user.role) {
+    const authUser = await getFirebaseAuth().getUser(String(user._id));
+    await getFirebaseAuth().setCustomUserClaims(String(user._id), { ...(authUser.customClaims ?? {}), role: updates.role });
+  }
+
   if (picked.email !== undefined && updates.email !== user.email) {
     const existing = await User.exists({ email: updates.email, _id: { $ne: user._id } });
 
@@ -241,12 +256,6 @@ export const updateUser = asyncHandler(async (req, res) => {
   }
 
   Object.assign(user, updates);
-
-  if (picked.password !== undefined) {
-    const password = String(picked.password);
-    assertPassword(password);
-    user.password = await hashPassword(password);
-  }
 
   if (picked.salary !== undefined) {
     const salaryUpdates = normalizeSalaryInput(picked.salary);
@@ -270,6 +279,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
   }
 
   await User.deleteOne({ _id: req.targetUser._id });
+  await getFirebaseAuth().deleteUser(String(req.targetUser._id));
   await audit(req.user, "user.delete", "user", String(req.targetUser._id), { before: serializeDirectoryUser(req.targetUser, req.user) }, req);
 
   res.json({ message: "User deleted." });
@@ -434,19 +444,28 @@ export const csvImport = asyncHandler(async (req, res) => {
           }
         : {};
 
-      const user = await User.create({
-        email,
-        password: await hashPassword(tempPassword),
-        role: ROLES.EMPLOYEE,
-        fullName: sanitizeText(row.fullName, 120),
-        phone: sanitizeText(row.phone, 40),
-        address: sanitizeText(row.address, 250),
-        employeeCode: sanitizeText(row.employeeCode, 40) || undefined,
-        ...refs,
-        joinDate: row.joinDate ? new Date(row.joinDate) : undefined,
-        employmentStatus: row.employmentStatus || "active",
-        salary,
-      });
+      let firebaseUser;
+      let user;
+      try {
+        firebaseUser = await getFirebaseAuth().createUser({ email, password: tempPassword, displayName: sanitizeText(row.fullName, 120) || undefined });
+        await getFirebaseAuth().setCustomUserClaims(firebaseUser.uid, { role: ROLES.EMPLOYEE });
+        user = await User.create({
+          _id: firebaseUser.uid,
+          email,
+          role: ROLES.EMPLOYEE,
+          fullName: sanitizeText(row.fullName, 120),
+          phone: sanitizeText(row.phone, 40),
+          address: sanitizeText(row.address, 250),
+          employeeCode: sanitizeText(row.employeeCode, 40) || undefined,
+          ...refs,
+          joinDate: row.joinDate ? new Date(row.joinDate) : undefined,
+          employmentStatus: row.employmentStatus || "active",
+          salary,
+        });
+      } catch (error) {
+        if (firebaseUser) await getFirebaseAuth().deleteUser(firebaseUser.uid).catch(() => {});
+        throw error;
+      }
 
       created += 1;
       outcome.ok = true;

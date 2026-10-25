@@ -1,4 +1,4 @@
-# HCM Lite — Refined Hybrid Plan (Node/Express/Mongoose backend + Next.js 15 frontend)
+# HCM Lite — Product Plan (Node/Express/Firestore backend + Next.js 15 frontend)
 
 ## Locked rules (strictly enforced, never relaxed by later phases)
 
@@ -8,8 +8,8 @@
 
 ## Library strategy
 
-- **Adopted production libraries:** `recharts` (dashboard charts), `pdf-lib` (payslip PDFs), `date-fns` (all date/working-day logic, server + frontend).
-- **Hand-rolled utilities:** in-memory rate limiter, CSV parse/serialize, OpenRouter fetch client. Base stack unchanged: Next.js 15 + Tailwind, Express + Mongoose, bcrypt, cors, dotenv, jsonwebtoken, node:crypto. Installs: `npm i recharts date-fns` at root; `npm --prefix server i pdf-lib date-fns`.
+- **Adopted production libraries:** Firebase Admin + Cloud Firestore (backend persistence), Firebase Authentication (browser identity), `recharts` (dashboard charts), `pdf-lib` (payslip PDFs), `date-fns` (all date/working-day logic, server + frontend).
+- **Hand-rolled utilities:** in-memory rate limiter, CSV parse/serialize, OpenRouter fetch client. Base stack: Next.js 15 + Tailwind, Express + Firestore, Firebase Authentication, cors, dotenv, node:crypto. Installs: `npm i recharts date-fns firebase` at root; `npm --prefix server i firebase-admin pdf-lib date-fns`.
 
 ## Phase 1 — Backend Foundation (`server/src`) ← starts immediately on approval
 
@@ -24,7 +24,7 @@
 
 ## Phase 2 — Models & access layer
 
-- **User (extend)**: +`fullName, phone, address, employeeCode, departmentId, designationId, joinDate, employmentStatus, salary {basic, allowance, currency}` (all optional — existing data safe; password stays `select:false`). Brief: HR assigns salary structure as **(basic, allowance)**; employee self-edit covers **phone and address**.
+- **User**: Firebase UID document ID plus `email, fullName, phone, address, employeeCode, departmentId, designationId, joinDate, employmentStatus, salary {basic, allowance, currency}`. Firebase Authentication owns passwords and custom role claims. Brief: HR assigns salary structure as **(basic, allowance)**; employee self-edit covers **phone and address**.
 - **Organization (singleton)**: companyName, officeStart/End, graceMinutes, weekendDays, halfDayHours (brief M2 says "under 5 h", M4 says "under 6 h" — keep configurable, default 6), geofence, latePolicy, progressive taxSlabs.
 - **Department, Designation, LeaveType, Holiday, Attendance** (unique userId+date — second check-in → 409; corrections), **LeaveApplication, PayrollRun** (month, status, lines[], summary), **Announcement, Notification, AuditLog (with before/after JSON meta), AiLog** (per-call log of AI usage). Leave balances are computed on the fly (entitled − approved − pending); "unpaid remainder" is modeled as a `paid: false` LeaveType, since the brief allows days beyond quota to go unpaid.
 - `scope.js` + `policies.js` extended per locked rule 1; unknown fields → 403.
@@ -51,7 +51,7 @@
 ## Phase 5 — Tests & verification
 
 - `node --test`: serializer salary-strip matrix, attendance engine, leave engine, payroll math, rate limiter, sanitize, CSV round-trip, pdf-lib smoke, audit tamper detection; existing tests keep passing.
-- `npm --prefix server test`, `npm run build`, `db:start` + `api:dev` + curl smoke (seed → org → accounts → check-in → leave approve → payroll finalize → payslip → audit verify; AI 503s gracefully without key).
+- `npm --prefix server test`, `npm run build`, Firestore emulator/API smoke (seed → org → accounts → check-in → leave approve → payroll finalize → payslip → audit verify; AI 503s gracefully without key).
 - README rewrite (modules, env incl. `AI_API_KEY/AI_BASE_URL/AI_MODEL`, threat→mechanism map); `.env.example` updates. No git commits unless asked.
 
 Execution begins with **Phase 1: Backend Foundation** immediately upon approval, then proceeds phase by phase.

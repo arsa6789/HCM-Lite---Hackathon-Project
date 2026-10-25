@@ -1,11 +1,11 @@
 import { ApiError } from "../utils/apiError.js";
 import { ROLE_VALUES } from "../constants/roles.js";
-import mongoose from "mongoose";
 
 const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
 
-export function assertObjectId(value, field = "identifier") {
-  if (!mongoose.Types.ObjectId.isValid(String(value ?? ""))) {
+export function assertDocumentId(value, field = "identifier") {
+  const id = String(value ?? "");
+  if (!/^[A-Za-z0-9_-]{1,150}$/.test(id)) {
     throw new ApiError(400, `Invalid ${field}.`);
   }
 }

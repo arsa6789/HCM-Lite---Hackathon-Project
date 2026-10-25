@@ -1,17 +1,4 @@
-import mongoose from "mongoose";
+import { defineModel } from "./firestoreModel.js";
 
-const auditLogSchema = new mongoose.Schema({
-  seq: { type: Number, required: true, unique: true },
-  at: { type: Date, required: true },
-  actorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-  actorRole: { type: String, default: null },
-  action: { type: String, required: true, index: true },
-  entity: { type: String, required: true, index: true },
-  entityId: { type: String, default: null },
-  meta: { type: mongoose.Schema.Types.Mixed, default: null },
-  ip: { type: String, default: "" },
-  prevHash: { type: String, required: true },
-  hash: { type: String, required: true },
-}, { versionKey: false });
-
-export default mongoose.models.AuditLog || mongoose.model("AuditLog", auditLogSchema);
+const AuditLog = defineModel("auditLogs", { defaults: { actorId: null, actorRole: null, entityId: null, meta: null, ip: "", prevHash: "", hash: "" }, unique: ["seq"], timestamps: false });
+export default AuditLog;

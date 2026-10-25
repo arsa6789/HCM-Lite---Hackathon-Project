@@ -1,6 +1,6 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
-import { assertObjectId } from "../utils/validate.js";
+import { assertDocumentId } from "../utils/validate.js";
 import { sanitizeText } from "../utils/sanitize.js";
 import { LEAVE_STATUS } from "../constants/statuses.js";
 import {
@@ -68,7 +68,7 @@ export const getApplications = asyncHandler(async (req, res) => {
 });
 
 export const patchReview = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "application id");
+  assertDocumentId(req.params.id, "application id");
   const decision = req.body?.decision;
 
   if (![LEAVE_STATUS.APPROVED, LEAVE_STATUS.REJECTED].includes(decision)) {
@@ -89,7 +89,7 @@ export const patchReview = asyncHandler(async (req, res) => {
 });
 
 export const patchCancel = asyncHandler(async (req, res) => {
-  assertObjectId(req.params.id, "application id");
+  assertDocumentId(req.params.id, "application id");
   const application = await cancelApplication(req.user, req.params.id);
   await audit(req.user, "leave.cancel", "leave", String(application._id), {}, req);
   res.json({ application: serializeApplication(application.toObject()) });
