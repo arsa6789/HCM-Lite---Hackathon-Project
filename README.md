@@ -1,60 +1,46 @@
 # HCM lite
 
-HCM lite is a role-aware people operations workspace built with Next.js 15, React 19, Tailwind CSS, Express, and MongoDB/Mongoose. It includes employee profiles, attendance and corrections, leave, payroll, dashboards, announcements, notifications, an audit hash chain, and an optional OpenRouter assistant.
+HCM lite is a role-aware people operations workspace built with Next.js 15 and React 19. Temporary local-only mode uses Firebase Authentication for email/password sign-in and browser `localStorage` for demo records. The MongoDB-backed Express API remains in `server/`, but is not started by the frontend and the frontend does not call it in this mode.
 
 ## Run locally
 
-Prerequisites: Node.js 20+, npm, and MongoDB (`mongod`) for local development.
+Prerequisites: Node.js 20+, npm, a Firebase project, and Email/Password enabled under Firebase Authentication providers.
 
 ```bash
 npm install
-npm --prefix server install
-cp server/.env.example server/.env
-cp .env.example .env
 ```
 
-Set `JWT_SECRET` and `SEED_ADMIN_PASSWORD` in `server/.env` before seeding. Start the local database and API:
-
-```bash
-npm run db:start
-npm run api:seed
-npm run api
-```
-
-In another terminal:
+Set the `NEXT_PUBLIC_FIREBASE_*` values in `.env.local` using the Firebase web app configuration, then run:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`. Seeded admin credentials are the values configured in `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. Public signup always creates an employee; admins create HR and admin accounts from the employee directory.
-
-When using hosted MongoDB, set the appropriate URI in `server/.env` and use `npm run api:online`. The project-local MongoDB helper binds to `127.0.0.1:27017` and stores data under `server/.data/mongo`.
+Open `http://localhost:3000`. Firebase Authentication persists sessions in browser local storage. New accounts receive employee access. Demo records are stored in the current browser profile only; clearing site data or switching browsers removes or hides them. Do not use this mode for sensitive or production HR data: browser storage and role fields are not a trusted authorization boundary, and data is not shared between users/devices.
 
 ## Configuration
 
-`server/.env`:
+`.env.local`:
 
 | Variable | Purpose |
 |---|---|
-| `MONGODB_URI` | Local/development Mongo connection string |
-| `MONGODB_URI_ONLINE` | Production/online Mongo connection string |
-| `JWT_SECRET` | Signing secret; use a cryptographically random value |
-| `JWT_EXPIRES_IN` | Token lifetime, default `7d` |
-| `PORT` | API port, default `4000` |
-| `CORS_ORIGINS` | Comma-separated trusted frontend origins |
-| `COOKIE_SECURE` | Set `true` when serving over HTTPS |
-| `SEED_ADMIN_EMAIL` | Admin account created by the seed script |
-| `SEED_ADMIN_PASSWORD` | Seed password, minimum 8 characters |
-| `AI_API_KEY` | Optional OpenRouter API key; keep it only in `server/.env` |
-| `AI_BASE_URL` | OpenRouter-compatible base URL, default `https://openrouter.ai/api/v1` |
-| `AI_MODEL` | Tool-calling model, default `meta-llama/llama-3.3-70b-instruct:free` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web app API key (public client configuration) |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
+| `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Optional Analytics measurement ID; unused by this app |
+
+For Vercel, add the same `NEXT_PUBLIC_FIREBASE_*` values in Project Settings → Environment Variables. The Firebase web API key is not a server credential. Configure Firebase Authentication's authorized domains for the deployed site.
+
+The Express API can still be started manually with `npm run api`; it continues to require MongoDB and its separate `server/.env`. It is intentionally not part of `npm run dev` in temporary local-only mode.
 
 `.env`:
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | API base URL used by the browser, default `http://localhost:4000/api` |
+| `NEXT_PUBLIC_API_URL` | Legacy API URL; unused by the current local-only frontend |
 
 The AI endpoints return a disabled status and chat requests return 503 when `AI_API_KEY` is empty. No key belongs in a `NEXT_PUBLIC_*` variable.
 

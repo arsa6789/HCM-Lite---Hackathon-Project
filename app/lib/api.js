@@ -30,7 +30,6 @@ function collectionFor(path) {
   if (path.startsWith("/designations")) return "designations";
   if (path.startsWith("/leave-types")) return "leaveTypes";
   if (path.startsWith("/holidays")) return "holidays";
-  if (path.startsWith("/announcements")) return "announcements";
   return null;
 }
 function pageResult(items, key) { return { total: items.length, page: 1, limit: items.length, [key]: items }; }
@@ -56,13 +55,23 @@ async function localRequest(path, { method = "GET", body } = {}) {
     return pageResult(users, "users");
   }
   if (pathname.startsWith("/users/") && method === "GET") return { user: records[user.id], attendanceSummary: { presentDays: 0, lateDays: 0, halfDays: 0, absentDays: 0, leaveDays: 0, lateMinutes: 0, workedMinutes: 0 }, leaveBalances: [] };
+  if (pathname.startsWith("/users/") && method === "PATCH") {
+    const targetId = pathname.split("/")[2];
+    if (targetId !== user.id) throw new Error("You can only update your own contact details.");
+    const denied = Object.keys(body ?? {}).filter((key) => !["phone", "address"].includes(key));
+    if (denied.length) throw new Error("Only phone and address can be changed in local-only mode.");
+    records[user.id] = { ...records[user.id], ...body };
+    write("users", records);
+    return { user: records[user.id] };
+  }
   if (pathname === "/org" && method === "GET") return read("organization", defaults.organization);
-  if (pathname === "/org" && method === "PUT") { write("organization", { org: { ...read("organization", defaults.organization).org, ...body } }); return read("organization", defaults.organization); }
+  if (pathname === "/org" && method === "PUT") throw new Error("Organization changes require an authorized server and are disabled in local-only mode.");
   const collection = collectionFor(pathname);
   if (collection) {
     const result = read(collection, defaults[collection]);
     const idIndex = pathname.split("/").filter(Boolean)[1];
     if (method === "GET") return collection === "announcements" ? pageResult(result, "announcements") : result;
+    if (user.role !== "admin") throw new Error("This local account does not have administrator privileges.");
     const items = result.items ?? result;
     if (method === "POST") { const item = { ...body, id: crypto.randomUUID() }; write(collection, { items: [...items, item] }); return { item }; }
     if (method === "PATCH") { const updated = items.map((item) => item.id === idIndex ? { ...item, ...body } : item); write(collection, { items: updated }); return { item: updated.find((item) => item.id === idIndex) }; }
@@ -85,7 +94,13 @@ async function localRequest(path, { method = "GET", body } = {}) {
     write("users", { ...records, [userId]: newUser });
     return { user: newUser };
   }
-  if (pathname === "/announcements") return pageResult(read("announcements", []), "announcements");
+  if (pathname === "/announcements" && method === "GET") return pageResult(read("announcements", []), "announcements");
+  if (pathname === "/announcements" && method === "POST") {
+    if (user.role !== "admin" && user.role !== "hr") throw new Error("Only administrators can post announcements in local-only mode.");
+    const item = { ...body, id: crypto.randomUUID(), createdBy: user.id, createdAt: new Date().toISOString() };
+    write("announcements", [item, ...read("announcements", [])]);
+    return { announcement: item };
+  }
   if (pathname.startsWith("/announcements/") && method === "PATCH") {
     const id = pathname.split("/")[2];
     const items = read("announcements", []).map((item) => item.id === id ? { ...item, ...body } : item);
