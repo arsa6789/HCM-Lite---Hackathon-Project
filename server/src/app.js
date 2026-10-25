@@ -1,10 +1,13 @@
 import express from "express";
 import cors from "cors";
+import { fileURLToPath } from "node:url";
 import routes from "./routes/index.js";
 import { env } from "./config/env.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimit } from "./utils/rateLimit.js";
+
+const publicDirectory = fileURLToPath(new URL("../public", import.meta.url));
 
 export function createApp() {
   const app = express();
@@ -40,6 +43,10 @@ export function createApp() {
   );
 
   app.use(express.json({ limit: "1mb" }));
+
+  app.get("/", (req, res) => {
+    res.sendFile("index.html", { root: publicDirectory });
+  });
 
   app.get(["/health", "/api/health"], (req, res) => {
     res.json({
