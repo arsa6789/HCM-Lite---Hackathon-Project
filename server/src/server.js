@@ -27,7 +27,7 @@ async function start() {
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
 
-if (import.meta.url === invokedPath) {
+if (process.env.VERCEL !== "1" && import.meta.url === invokedPath) {
   start().catch((error) => {
     console.error("Failed to start API:", error.message);
 

@@ -25,7 +25,7 @@ Open http://localhost:3000. The API listens on http://localhost:4000. Stop both 
 
 ### Vercel Deployment
 
-Deploy the frontend as one Vercel project from the repository root. Deploy the API as a second Vercel project with **Root Directory** set to `server`. Set the API project's server-only `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` (use a newly rotated service-account JSON), and `CORS_ORIGINS` including the frontend production origin. Set the frontend's `NEXT_PUBLIC_API_URL` to the API deployment URL ending in `/api`. Never use `NEXT_PUBLIC_` for the service-account key, and do not commit service-account JSON files.
+Deploy the frontend as one Vercel project from the repository root. Deploy the API as a second Vercel project with **Root Directory** set to `server`. In the API project's Production and Preview environments, set server-only `FIREBASE_PROJECT_ID=hmc-lite`, `FIREBASE_SERVICE_ACCOUNT_JSON` or `FIREBASE_SERVICE_ACCOUNT_BASE64` (use a newly rotated service-account JSON), and `CORS_ORIGINS` to the exact frontend origin, e.g. `https://hcm-lite-project-new.vercel.app` (no trailing slash). Set the frontend's `NEXT_PUBLIC_API_URL` to the API deployment URL ending in `/api`. Never use `NEXT_PUBLIC_` for the service-account key, and do not commit service-account JSON files.
 
 Seed an administrator role for an existing Firebase Authentication user:
 
