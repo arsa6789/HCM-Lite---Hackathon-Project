@@ -22,7 +22,7 @@ const MODULES = {
 const COLORS = ["#1f7a68", "#d88a35", "#d7604d", "#64748b", "#71a896"];
 const inputClass = "field-control";
 
-function Button({ children, onClick, type = "button", variant = "primary", disabled = false }) {
+function Button({ children, onClick, type = "submit", variant = "primary", disabled = false }) {
   return <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant}`}>{children}</button>;
 }
 

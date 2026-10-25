@@ -4,6 +4,18 @@ import { useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { authPersistenceReady, firebaseAuth, firebaseConfigured } from "../lib/firebase";
 
+function authErrorMessage(error) {
+  const code = error?.code ?? "";
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+    return "Hey, please check this: your email address or password.";
+  }
+  if (code === "auth/email-already-in-use") return "Hey, please check this: that email address is already registered.";
+  if (code === "auth/weak-password") return "Hey, please check this: choose a password with at least 8 characters.";
+  if (code === "auth/invalid-email") return "Hey, please check this: enter a valid email address.";
+  if (code === "auth/network-request-failed") return "Sorry, the sign-in service is sleeping or unavailable. Please try again shortly.";
+  return "Sorry, sign-in could not be completed. Please try again.";
+}
+
 export default function AuthForm({ onAuthenticated, mode: externalMode, setMode: setExternalMode }) {
   const [localMode, setLocalMode] = useState("login");
   const mode = externalMode ?? localMode;
@@ -42,7 +54,7 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
       setMode("login");
       setPassword("");
     } catch (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: authErrorMessage(error) });
     } finally {
       setLoading(false);
     }
