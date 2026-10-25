@@ -43,14 +43,23 @@ export default function ConsoleLayout({ children }) {
         return;
       }
       try {
-        if (active) {
-          const session = await apiRequest("/auth/me");
-          setUser(session.user);
-          const notificationData = await apiRequest("/notifications?limit=8");
-          setNotifications(notificationData);
-        }
-      } catch {
-        router.replace("/login");
+        const session = await apiRequest("/auth/me");
+        if (!active) return;
+        setUser(session.user);
+      } catch (error) {
+        console.error("Could not validate the API session:", error);
+        router.replace("/login?error=session");
+        return;
+      }
+
+      try {
+        const notificationData = await apiRequest("/notifications?limit=8");
+        if (active) setNotifications(notificationData);
+      } catch (error) {
+        // Notifications are non-essential. A failure here must not sign a
+        // valid user out after /auth/me has already succeeded.
+        console.warn("Could not load notifications:", error);
+        if (active) setNotifications({ notifications: [], unread: 0 });
       } finally {
         if (active) setBusy(false);
       }

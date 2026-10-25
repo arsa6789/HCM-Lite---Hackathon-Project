@@ -30,6 +30,9 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
       await authPersistenceReady;
       if (isLogin) {
         const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+        // Refresh immediately so newly seeded Firebase custom claims (such as
+        // the admin role) are included before the console calls /auth/me.
+        await credential.user.getIdToken(true);
         onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
         return;
       }
