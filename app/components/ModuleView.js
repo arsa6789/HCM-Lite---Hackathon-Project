@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -19,8 +20,19 @@ const MODULES = {
   assistant: ["HCM assistant", "Answers grounded in your organization data."],
 };
 
-const COLORS = ["#1f7a68", "#d88a35", "#d7604d", "#64748b", "#71a896"];
+const COLORS = ["#1f7a68", "#d88a35", "#d7604d", "#64748b", "#b55b4d"];
 const inputClass = "field-control";
+
+function defaultDashboardFilters() {
+  const to = new Date();
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - 29);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+    departmentId: "",
+  };
+}
 
 function Button({ children, onClick, type = "submit", variant = "primary", disabled = false }) {
   return <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant}`}>{children}</button>;
@@ -66,15 +78,21 @@ export default function ModuleView({ section, user, apiRequest, apiDownload }) {
   const [csvText, setCsvText] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePage, setEmployeePage] = useState(1);
+  const [dashboardFilters, setDashboardFilters] = useState(defaultDashboardFilters);
+  const loadRequestId = useRef(0);
 
   const load = useCallback(async () => {
     if (!user) return;
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError("");
+    setData(null);
     try {
       let result;
       if (section === "dashboard") {
-        result = (await apiRequest("/dashboard/summary")).dashboard;
+        const params = new URLSearchParams({ from: dashboardFilters.from, to: dashboardFilters.to });
+        if (dashboardFilters.departmentId) params.set("departmentId", dashboardFilters.departmentId);
+        result = (await apiRequest(`/dashboard/summary?${params.toString()}`)).dashboard;
       } else if (section === "profile") {
         result = await apiRequest(`/users/${user.id}`);
       } else if (section === "organization") {
@@ -115,15 +133,18 @@ export default function ModuleView({ section, user, apiRequest, apiDownload }) {
       } else {
         throw new Error("This section does not exist.");
       }
-      setData(result);
+      if (requestId === loadRequestId.current) setData(result);
     } catch (loadError) {
-      setError(loadError.message);
+      if (requestId === loadRequestId.current) setError(loadError.message);
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
-  }, [apiRequest, calendarMonth, employeePage, employeeSearch, section, user?.id, user?.role]);
+  }, [apiRequest, calendarMonth, dashboardFilters.departmentId, dashboardFilters.from, dashboardFilters.to, employeePage, employeeSearch, section, user?.id, user?.role]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { loadRequestId.current += 1; };
+  }, [load]);
 
   async function runAction(action, success = "Saved.") {
     setBusy(true);
@@ -169,7 +190,7 @@ export default function ModuleView({ section, user, apiRequest, apiDownload }) {
     {error && <div className="notice notice-error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss">×</button></div>}
     {loading ? <div className="loading-block"><span className="loading-mark" />Loading {title.toLowerCase()}…</div> : !data ? <EmptyState text="No data could be loaded." /> : (
       <>
-        {section === "dashboard" && <DashboardView data={data} user={user} />}
+        {section === "dashboard" && <DashboardView data={data} user={user} filters={dashboardFilters} onApplyFilters={setDashboardFilters} />}
         {section === "profile" && <PersonalProfileView data={data} user={user} apiRequest={apiRequest} runAction={runAction} busy={busy} />}
         {section === "organization" && <OrganizationView data={data} user={user} apiRequest={apiRequest} draft={orgDraft} setDraft={setOrgDraft} runAction={runAction} busy={busy} />}
         {section === "employees" && <><div className="directory-toolbar"><label>Search employees<input className={inputClass} value={employeeSearch} onChange={(event) => { setEmployeeSearch(event.target.value); setEmployeePage(1); }} placeholder="Name, email, employee ID" /></label><span>{data.total ?? 0} employees</span></div><EmployeesView data={data} user={user} apiRequest={apiRequest} apiDownload={apiDownload} runAction={runAction} busy={busy} csvText={csvText} setCsvText={setCsvText} /><div className="pagination-controls"><Button variant="quiet" disabled={employeePage <= 1 || loading} onClick={() => setEmployeePage((page) => Math.max(1, page - 1))}>Previous</Button><span>Page {data.page ?? employeePage} of {Math.max(1, Math.ceil((data.total ?? 0) / (data.limit ?? 25)))}</span><Button variant="quiet" disabled={loading || employeePage >= Math.ceil((data.total ?? 0) / (data.limit ?? 25))} onClick={() => setEmployeePage((page) => page + 1)}>Next</Button></div><SalaryAssignment users={data.users ?? []} user={user} apiRequest={apiRequest} runAction={runAction} busy={busy} /></>}
@@ -184,40 +205,90 @@ export default function ModuleView({ section, user, apiRequest, apiDownload }) {
   </>;
 }
 
-function DashboardView({ data, user }) {
+function DashboardView({ data, user, filters, onApplyFilters }) {
   const employee = data.role === "employee";
   const counts = data.counts ?? {};
   const trend = data.trend ?? [];
   const announcements = data.announcements ?? [];
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const [draft, setDraft] = useState(filters);
+  const [filterError, setFilterError] = useState("");
+
+  useEffect(() => {
+    setDraft(filters);
+    setFilterError("");
+  }, [filters.from, filters.to, filters.departmentId]);
+
   const attendanceData = [
-    { name: "Present", value: counts.present ?? 0 }, { name: "Late", value: counts.late ?? 0 },
-    { name: "Half day", value: counts.halfDay ?? 0 }, { name: "Leave", value: counts.leave ?? 0 },
+    { name: "Present", value: counts.present ?? 0 },
+    { name: "Late", value: counts.late ?? 0 },
+    { name: "Half day", value: counts.halfDay ?? 0 },
+    { name: "Leave", value: counts.leave ?? 0 },
+    { name: "Absent", value: counts.absent ?? 0 },
   ];
+  const hasAttendance = attendanceData.some((item) => item.value > 0);
+  const hasTrend = trend.some((item) => item.rate !== null && item.rate !== undefined);
+  const departments = (data.departments ?? []).filter((department) => department.id !== "unassigned");
+  const departmentData = (data.departments ?? []).filter((department) => department.count > 0);
+
+  function submitFilters(event) {
+    event.preventDefault();
+    if (!draft.from || !draft.to || draft.from > draft.to) {
+      setFilterError("Choose a valid start and end date.");
+      return;
+    }
+    if (draft.to > todayKey) {
+      setFilterError("The reporting period cannot include future dates.");
+      return;
+    }
+    setFilterError("");
+    onApplyFilters({ ...draft });
+  }
+
+  function resetFilters() {
+    const next = defaultDashboardFilters();
+    setDraft(next);
+    setFilterError("");
+    onApplyFilters(next);
+  }
+
   return <>
+    <form className="dashboard-filters" onSubmit={submitFilters}>
+      <label>From date<input className={inputClass} type="date" max={todayKey} value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label>
+      <label>To date<input className={inputClass} type="date" min={draft.from} max={todayKey} value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label>
+      {!employee && <label>Department<select className={inputClass} value={draft.departmentId} onChange={(event) => setDraft({ ...draft, departmentId: event.target.value })}><option value="">All visible departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>}
+      <div className="dashboard-filter-actions"><Button type="submit">Apply filters</Button><Button type="button" variant="quiet" onClick={resetFilters}>Reset</Button></div>
+      {filterError && <p className="dashboard-filter-error" role="alert">{filterError}</p>}
+    </form>
     <div className="range-strip"><span>Reporting period</span><strong>{data.range?.from} — {data.range?.to}</strong><span className="range-days">{data.range?.workingDays ?? 0} working days</span></div>
+    {user?.role === "admin" && (!data.organizationConfigured || ((data.headcount ?? 0) === 0 && !filters.departmentId)) && <section className="dashboard-setup">
+      <div><span className="eyebrow">WORKSPACE SETUP</span><h2>{data.organizationConfigured ? "Add your first employee" : "Set up your organization"}</h2><p>{data.organizationConfigured ? "Your dashboard will populate as you add active employees and begin recording attendance." : "Configure your work policy and reference lists first. Then add employees and start recording attendance. Dashboard figures use saved records; no demo data is being shown."}</p></div>
+      <div className="dashboard-setup-actions"><Link href="/console/organization" className="button button-primary">Configure organization</Link><Link href="/console/employees" className="button button-quiet">Add employees</Link></div>
+    </section>}
+    {!data.organizationConfigured && user?.role !== "admin" && <section className="dashboard-setup dashboard-setup-info"><div><span className="eyebrow">WORKSPACE SETUP</span><h2>Organization setup is not complete</h2><p>Ask an administrator to configure the organization before attendance and leave metrics can be calculated.</p></div></section>}
     <div className="stat-grid">
       {employee ? <>
-        <Stat label="Attendance rate" value={`${data.attendanceRate ?? 0}%`} foot="For selected period" />
+        <Stat label="Attendance rate" value={`${data.attendanceRate ?? 0}%`} foot="For selected period; approved leave excluded" />
         <Stat label="Hours this week" value={`${data.hoursThisWeek ?? 0}h`} foot={`of ${data.weeklyTargetHours ?? 40}h target`} tone="amber" />
         <Stat label="Late this month" value={data.lateThisMonth ?? 0} foot="Recorded late arrivals" tone="coral" />
         <Stat label="Pending requests" value={data.pendingRequests ?? 0} foot="Awaiting review" tone="blue" />
       </> : <>
         <Stat label="Active people" value={data.headcount ?? 0} foot="Across visible organization" />
-        <Stat label="Attendance rate" value={`${data.attendanceRate ?? 0}%`} foot="Present, late and half-day weighted" tone="blue" />
+        <Stat label="Attendance rate" value={`${data.attendanceRate ?? 0}%`} foot="Present, late and half-day weighted; leave excluded" tone="blue" />
         <Stat label="Late rate" value={`${data.lateRate ?? 0}%`} foot={`${counts.late ?? 0} late records`} tone="amber" />
         <Stat label="Pending approvals" value={data.pendingLeaves ?? 0} foot="Leave requests" tone="coral" />
       </>}
     </div>
-    {!employee && <div className="stat-grid compact-stats"><Stat label="On leave today" value={data.today?.leave ?? 0} foot={data.today?.isWorkingDay ? "Current workday" : "Non-working day"} tone="blue" /><Stat label="Absent today" value={data.today?.absent ?? 0} foot="No attendance record" tone="coral" /><Stat label="Late today" value={data.today?.late ?? 0} foot="After grace period" tone="amber" /><Stat label="Average hours" value={`${data.averageHoursWorked ?? 0}h`} foot="Per attendance record" /></div>}
+    {!employee && <div className="stat-grid compact-stats"><Stat label="On leave today" value={data.today?.leave ?? 0} foot={data.today?.isWorkingDay ? "Current workday" : "Non-working day"} tone="blue" /><Stat label="Absent today" value={data.today?.absent ?? 0} foot="Includes missed check-ins" tone="coral" /><Stat label="Late today" value={data.today?.late ?? 0} foot="After grace period" tone="amber" /><Stat label="Average hours" value={`${data.averageHoursWorked ?? 0}h`} foot="Per scheduled day, excluding leave" /></div>}
     <div className="dashboard-grid">
-      <Panel title="Attendance trend" className="chart-panel"><div className="chart-area"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend}><defs><linearGradient id="attendanceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#197b68" stopOpacity={0.25} /><stop offset="95%" stopColor="#197b68" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7ebe8" /><XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} tickLine={false} axisLine={false} /><YAxis domain={[0, 100]} tickLine={false} axisLine={false} /><Tooltip /><Area type="monotone" dataKey="rate" stroke="#197b68" strokeWidth={2.5} fill="url(#attendanceFill)" /></AreaChart></ResponsiveContainer></div></Panel>
-      <Panel title="Attendance mix" className="chart-panel"><div className="chart-area chart-donut"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={attendanceData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>{attendanceData.map((entry, index) => <Cell key={entry.name} fill={COLORS[index]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div className="donut-center"><strong>{data.attendanceRate ?? 0}%</strong><span>attendance</span></div></div><div className="legend-row">{attendanceData.map((item, i) => <span key={item.name}><i style={{ background: COLORS[i] }} />{item.name}</span>)}</div></Panel>
-      {!employee && <Panel title="Department headcount" className="chart-panel"><div className="chart-area"><ResponsiveContainer width="100%" height="100%"><BarChart data={data.departments ?? []} layout="vertical" margin={{ left: 8 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7ebe8" /><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false} /><Tooltip /><Bar dataKey="count" fill="#d88a35" radius={[0, 4, 4, 0]} barSize={16} /></BarChart></ResponsiveContainer></div></Panel>}
+      <Panel title="Attendance trend" className="chart-panel">{hasTrend ? <div className="chart-area"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend}><defs><linearGradient id="attendanceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#197b68" stopOpacity={0.25} /><stop offset="95%" stopColor="#197b68" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7ebe8" /><XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} tickLine={false} axisLine={false} /><YAxis domain={[0, 100]} tickLine={false} axisLine={false} /><Tooltip /><Area type="monotone" dataKey="rate" stroke="#197b68" strokeWidth={2.5} fill="url(#attendanceFill)" connectNulls={false} /></AreaChart></ResponsiveContainer></div> : <EmptyState text={data.organizationConfigured ? "No working-day attendance in this reporting period." : "Configure the organization to define working days and calculate attendance."} />}</Panel>
+      <Panel title="Attendance mix" className="chart-panel">{hasAttendance ? <><div className="chart-area chart-donut"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={attendanceData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>{attendanceData.map((entry, index) => <Cell key={entry.name} fill={COLORS[index]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div className="donut-center"><strong>{data.attendanceRate ?? 0}%</strong><span>attendance</span></div></div><div className="legend-row">{attendanceData.map((item, index) => <span key={item.name}><i style={{ background: COLORS[index] }} />{item.name}</span>)}</div></> : <EmptyState text="Attendance mix will appear after working days are configured and records exist." />}</Panel>
+      {!employee && <Panel title="Department headcount" className="chart-panel">{departmentData.length ? <div className="chart-area"><ResponsiveContainer width="100%" height="100%"><BarChart data={departmentData} layout="vertical" margin={{ left: 8 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7ebe8" /><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false} /><Tooltip /><Bar dataKey="count" fill="#d88a35" radius={[0, 4, 4, 0]} barSize={16} /></BarChart></ResponsiveContainer></div> : <EmptyState text="No department headcount to display yet." />}</Panel>}
       {!employee && <Panel title="Frequent late arrivals" className="late-panel"><Table rows={data.topLateComers ?? []} columns={[["fullName", "Employee"], ["email", "Email"], ["count", "Late days"]]} empty="No late arrivals in this period." /></Panel>}
-      {!employee && <Panel title="Leave utilization" className="leave-balance-panel"><Table rows={data.leaveUtilization ?? []} columns={[["name", "Leave type"], ["approvedDays", "Approved days"], ["annualDays", "Annual quota"], ["utilizationRate", "Utilization %"]]} empty="No leave types configured." /></Panel>}
-      {employee && <Panel title="Your leave balances" className="leave-balance-panel"><div className="balance-list">{(data.leave?.balances ?? []).map((balance) => <div className="balance-row" key={balance.leaveTypeId}><div><strong>{balance.name}</strong><small>{balance.used} used · {balance.pending} pending</small></div><b>{balance.remaining}<small> / {balance.annualDays} days</small></b></div>)}</div></Panel>}
+      {!employee && <Panel title="Leave utilization (year to date)" className="leave-balance-panel"><Table rows={data.leaveUtilization ?? []} columns={[["name", "Leave type"], ["approvedDays", "Approved YTD"], ["annualDays", "Annual quota"], ["utilizationRate", "Utilization %"]]} empty="No leave types configured." /></Panel>}
+      {employee && <Panel title="Your leave balances" className="leave-balance-panel"><div className="balance-list">{(data.leave?.balances ?? []).map((balance) => <div className="balance-row" key={balance.leaveTypeId}><div><strong>{balance.name}</strong><small>{balance.used} used · {balance.pending} pending</small></div><b>{balance.remaining}<small> / {balance.annualDays} days</small></b></div>)}</div>{!data.leave?.balances?.length && <EmptyState text="No leave types configured." />}</Panel>}
       <Panel title="Latest announcements" className="announcements-panel">{announcements.length ? <div className="announcement-list">{announcements.map((item) => <article key={item.id}><div className="announcement-date">{item.pinned ? "PINNED" : new Date(item.createdAt).toLocaleDateString()}</div><h3>{item.title}</h3><p>{item.body}</p></article>)}</div> : <EmptyState text="No announcements yet." />}</Panel>
-      {user?.role === "admin" && <Panel title="Compensation overview" className="payroll-summary"><div className="compensation-metrics"><div><span>{data.payroll ? `Finalized payroll · ${data.payroll.month}` : "Latest finalized payroll"}</span><strong>{data.payroll?.totalGross?.toLocaleString() ?? "—"}</strong><small>Gross payroll</small></div><div><span>Average monthly salary</span><strong>{data.averageSalary?.toLocaleString() ?? "—"}</strong><small>Active employees</small></div><div><span>Net pay</span><strong>{data.payroll?.totalNet?.toLocaleString() ?? "—"}</strong><small>{data.payroll?.employeeCount ?? 0} employees</small></div></div></Panel>}
+      {user?.role === "admin" && <Panel title="Compensation overview" className="payroll-summary"><div className="compensation-metrics"><div><span>{data.payroll ? `Organization-wide payroll · ${data.payroll.month}` : "Organization-wide finalized payroll"}</span><strong>{data.payroll?.totalGross?.toLocaleString() ?? "—"}</strong><small>Gross pay · all departments</small></div><div><span>Average monthly salary</span><strong>{data.averageSalary?.toLocaleString() ?? "—"}</strong><small>{filters.departmentId ? `${departments.find((department) => department.id === filters.departmentId)?.name ?? "Selected department"} employees` : "All active employees"}</small></div><div><span>Organization-wide net pay</span><strong>{data.payroll?.totalNet?.toLocaleString() ?? "—"}</strong><small>{data.payroll?.employeeCount ?? 0} employees · latest finalized run</small></div></div></Panel>}
     </div>
   </>;
 }
