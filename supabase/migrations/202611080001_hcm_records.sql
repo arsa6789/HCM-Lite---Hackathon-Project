@@ -17,10 +17,10 @@ create unique index if not exists hcm_users_email_unique
   on public.hcm_records (lower(data->>'email'))
   where collection = 'users' and coalesce(data->>'email', '') <> '';
 create unique index if not exists hcm_users_employee_code_unique
-  on public.hcm_records (data->>'employeeCode')
+  on public.hcm_records ((data->>'employeeCode'))
   where collection = 'users' and coalesce(data->>'employeeCode', '') <> '';
 create unique index if not exists hcm_attendance_user_date_unique
-  on public.hcm_records (data->>'userId', data->>'date')
+  on public.hcm_records ((data->>'userId'), (data->>'date'))
   where collection = 'attendance';
 create unique index if not exists hcm_departments_name_unique
   on public.hcm_records (lower(data->>'name'))
@@ -32,10 +32,10 @@ create unique index if not exists hcm_leave_types_name_unique
   on public.hcm_records (lower(data->>'name'))
   where collection = 'leaveTypes' and coalesce(data->>'name', '') <> '';
 create unique index if not exists hcm_payroll_month_unique
-  on public.hcm_records (data->>'month')
+  on public.hcm_records ((data->>'month'))
   where collection = 'payrollRuns' and coalesce(data->>'month', '') <> '';
 create unique index if not exists hcm_audit_sequence_unique
-  on public.hcm_records ((data->>'seq')::bigint)
+  on public.hcm_records ((data->>'seq'))
   where collection = 'auditLogs' and data ? 'seq';
 
 alter table public.hcm_records enable row level security;
