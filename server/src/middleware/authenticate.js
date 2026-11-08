@@ -1,40 +1,35 @@
 import User from "../models/User.js";
 import { ApiError } from "../utils/apiError.js";
-import { getFirebaseAuth } from "../config/firestore.js";
+import { getSupabaseAdmin } from "../config/supabase.js";
 import { ROLES } from "../constants/roles.js";
 
 export async function authenticate(req, res, next) {
   try {
     const header = req.headers.authorization ?? "";
     const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (!token) throw new ApiError(401, "Authentication required.");
 
-    if (!token) {
-      throw new ApiError(401, "Authentication required.");
+    const { data, error } = await getSupabaseAdmin().auth.getUser(token);
+    if (error || !data?.user) throw new ApiError(401, "Invalid or expired access token.");
+    const authUser = data.user;
+    let account = await User.findById(authUser.id);
+    if (!account) {
+      account = await User.create({ _id: authUser.id, email: authUser.email ?? "", role: ROLES.EMPLOYEE });
     }
 
-    let payload;
-
-    try {
-      payload = await getFirebaseAuth().verifyIdToken(token);
-    } catch {
-      throw new ApiError(401, "Invalid or expired token.");
-    }
-
-    const role = Object.values(ROLES).includes(payload.role) ? payload.role : ROLES.EMPLOYEE;
-    let account = await User.findById(payload.uid);
-    if (!account) account = await User.create({ _id: payload.uid, email: payload.email ?? "", role });
-    else if (account.role !== role) {
+    // The app profile is the sole role source; JWT/user metadata is never trusted.
+    const role = Object.values(ROLES).includes(account.role) ? account.role : ROLES.EMPLOYEE;
+    if (account.role !== role) {
       account.role = role;
+      await account.save();
+    }
+    if (authUser.email && account.email !== authUser.email) {
+      account.email = authUser.email;
       await account.save();
     }
 
     req.account = account.toObject();
-    req.user = {
-      id: String(payload.uid),
-      email: payload.email ?? account.email,
-      role,
-    };
-
+    req.user = { id: String(authUser.id), email: authUser.email ?? account.email, role };
     next();
   } catch (error) {
     next(error);

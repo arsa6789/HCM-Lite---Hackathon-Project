@@ -1,4 +1,4 @@
-import { defineModel } from "./firestoreModel.js";
+import { defineModel } from "./recordModel.js";
 
 const LeaveType = defineModel("leaveTypes", { defaults: { annualDays: 0, paid: true }, unique: ["name"] });
 export default LeaveType;

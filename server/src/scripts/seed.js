@@ -1,32 +1,33 @@
 import User from "../models/User.js";
-import { connectFirestore, disconnectFirestore, getFirebaseAuth } from "../config/firestore.js";
+import { connectSupabase, disconnectSupabase, getSupabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
 import { ROLES } from "../constants/roles.js";
 
 async function run() {
   if (!env.seedAdminUid) {
-    throw new Error("SEED_ADMIN_UID must be the UID of an existing Firebase Authentication user.");
+    throw new Error("SEED_ADMIN_UID must be the ID of an existing Supabase Auth user.");
   }
 
-  await connectFirestore();
-  const authUser = await getFirebaseAuth().getUser(env.seedAdminUid);
-  await getFirebaseAuth().setCustomUserClaims(authUser.uid, { ...(authUser.customClaims ?? {}), role: ROLES.ADMIN });
+  await connectSupabase();
+  const { data, error } = await getSupabaseAdmin().auth.admin.getUserById(env.seedAdminUid);
+  if (error || !data?.user) throw new Error(error?.message ?? "Supabase Auth user was not found.");
+  const authUser = data.user;
 
-  const existing = await User.findById(authUser.uid);
+  const existing = await User.findById(authUser.id);
   if (existing) {
     existing.email = authUser.email ?? existing.email;
     existing.role = ROLES.ADMIN;
     await existing.save();
-    console.log("Firebase admin role refreshed in Firestore.");
+    console.log("Admin role refreshed in the HCM user profile.");
   } else {
-    await User.create({ _id: authUser.uid, email: authUser.email ?? "", role: ROLES.ADMIN });
-    console.log("Firebase admin profile created in Firestore.");
+    await User.create({ _id: authUser.id, email: authUser.email ?? "", role: ROLES.ADMIN });
+    console.log("Admin HCM user profile created.");
   }
-  await disconnectFirestore();
+  await disconnectSupabase();
 }
 
 run().catch(async (error) => {
   console.error(error.message);
-  await disconnectFirestore().catch(() => {});
+  await disconnectSupabase().catch(() => {});
   process.exit(1);
 });

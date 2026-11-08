@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getFirebaseAuth } from "../config/firestore.js";
+import { getSupabaseAdmin } from "../config/supabase.js";
 import User from "../models/User.js";
 import Department from "../models/Department.js";
 import Designation from "../models/Designation.js";
@@ -180,9 +180,15 @@ export const createUser = asyncHandler(async (req, res) => {
 
   let authUser;
   try {
-    authUser = await getFirebaseAuth().createUser({ email, password, displayName: updates.fullName || undefined });
-    await getFirebaseAuth().setCustomUserClaims(authUser.uid, { role });
-    const user = await User.create({ _id: authUser.uid, email, role, ...updates, salary });
+    const { data, error } = await getSupabaseAdmin().auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { fullName: updates.fullName || "" },
+    });
+    if (error) throw error;
+    authUser = data.user;
+    const user = await User.create({ _id: authUser.id, email, role, ...updates, salary });
 
     await audit(req.user, "user.create", "user", String(user._id), { after: serializeProfile(user.toObject(), req.user) }, req);
     await notifyUsers([user._id], {
@@ -196,8 +202,8 @@ export const createUser = asyncHandler(async (req, res) => {
       user: serializeDirectoryUser(user.toObject(), req.user),
     });
   } catch (error) {
-    if (authUser) await getFirebaseAuth().deleteUser(authUser.uid).catch(() => {});
-    if (error.code === "auth/email-already-exists") throw new ApiError(409, "An account with this email already exists.");
+    if (authUser) await getSupabaseAdmin().auth.admin.deleteUser(authUser.id).catch(() => {});
+    if (["email_exists", "user_already_exists", "23505"].includes(error.code)) throw new ApiError(409, "An account with this email already exists.");
     throw error;
   }
 });
@@ -235,24 +241,18 @@ export const updateUser = asyncHandler(async (req, res) => {
   const before = serializeProfile(user.toObject(), req.user);
   const updates = buildProfileUpdates(picked);
 
-  if (updates.email !== undefined || updates.fullName !== undefined) {
-    await getFirebaseAuth().updateUser(String(user._id), {
-      ...(updates.email !== undefined ? { email: updates.email } : {}),
-      ...(updates.fullName !== undefined ? { displayName: updates.fullName } : {}),
-    });
-  }
-
-  if (updates.role !== undefined && updates.role !== user.role) {
-    const authUser = await getFirebaseAuth().getUser(String(user._id));
-    await getFirebaseAuth().setCustomUserClaims(String(user._id), { ...(authUser.customClaims ?? {}), role: updates.role });
-  }
-
   if (picked.email !== undefined && updates.email !== user.email) {
     const existing = await User.exists({ email: updates.email, _id: { $ne: user._id } });
+    if (existing) throw new ApiError(409, "An account with this email already exists.");
+  }
 
-    if (existing) {
-      throw new ApiError(409, "An account with this email already exists.");
-    }
+  if (updates.email !== undefined || updates.fullName !== undefined) {
+    const { error } = await getSupabaseAdmin().auth.admin.updateUserById(String(user._id), {
+      ...(updates.email !== undefined ? { email: updates.email } : {}),
+      ...(updates.email !== undefined ? { email_confirm: true } : {}),
+      ...(updates.fullName !== undefined ? { user_metadata: { fullName: updates.fullName } } : {}),
+    });
+    if (error) throw error;
   }
 
   Object.assign(user, updates);
@@ -279,7 +279,8 @@ export const deleteUser = asyncHandler(async (req, res) => {
   }
 
   await User.deleteOne({ _id: req.targetUser._id });
-  await getFirebaseAuth().deleteUser(String(req.targetUser._id));
+  const { error } = await getSupabaseAdmin().auth.admin.deleteUser(String(req.targetUser._id));
+  if (error) throw error;
   await audit(req.user, "user.delete", "user", String(req.targetUser._id), { before: serializeDirectoryUser(req.targetUser, req.user) }, req);
 
   res.json({ message: "User deleted." });
@@ -444,13 +445,19 @@ export const csvImport = asyncHandler(async (req, res) => {
           }
         : {};
 
-      let firebaseUser;
+      let authUser;
       let user;
       try {
-        firebaseUser = await getFirebaseAuth().createUser({ email, password: tempPassword, displayName: sanitizeText(row.fullName, 120) || undefined });
-        await getFirebaseAuth().setCustomUserClaims(firebaseUser.uid, { role: ROLES.EMPLOYEE });
+        const { data, error } = await getSupabaseAdmin().auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { fullName: sanitizeText(row.fullName, 120) || "" },
+        });
+        if (error) throw error;
+        authUser = data.user;
         user = await User.create({
-          _id: firebaseUser.uid,
+          _id: authUser.id,
           email,
           role: ROLES.EMPLOYEE,
           fullName: sanitizeText(row.fullName, 120),
@@ -463,7 +470,7 @@ export const csvImport = asyncHandler(async (req, res) => {
           salary,
         });
       } catch (error) {
-        if (firebaseUser) await getFirebaseAuth().deleteUser(firebaseUser.uid).catch(() => {});
+        if (authUser) await getSupabaseAdmin().auth.admin.deleteUser(authUser.id).catch(() => {});
         throw error;
       }
 

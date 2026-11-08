@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiRequest } from "../lib/api";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { firebaseAuth } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 
 const NAV_ITEMS = [
   ["dashboard", "Overview", ["admin", "hr", "employee"]],
@@ -31,14 +30,15 @@ export default function ConsoleLayout({ children }) {
 
   useEffect(() => {
     let active = true;
-    if (!firebaseAuth) {
+    if (!supabase) {
       setBusy(false);
       router.replace("/login");
       return () => { active = false; };
     }
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (authUser) => {
-      if (!authUser) {
+    async function loadSession(session) {
+      if (!session) {
         if (active) setBusy(false);
+        if (active) setUser(null);
         router.replace("/login");
         return;
       }
@@ -63,12 +63,15 @@ export default function ConsoleLayout({ children }) {
       } finally {
         if (active) setBusy(false);
       }
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      queueMicrotask(() => { void loadSession(session); });
     });
-    return () => { active = false; unsubscribe(); };
+    return () => { active = false; subscription.unsubscribe(); };
   }, [router]);
 
   async function logout() {
-    try { await signOut(firebaseAuth); } catch {}
+    try { await supabase?.auth.signOut(); } catch {}
     router.replace("/login");
   }
 

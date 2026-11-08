@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { connectFirestore, disconnectFirestore } from "./config/firestore.js";
+import { connectSupabase, disconnectSupabase } from "./config/supabase.js";
 import { env } from "./config/env.js";
 import { pathToFileURL } from "node:url";
 
@@ -7,7 +7,7 @@ const app = createApp();
 export default app;
 
 async function start() {
-  await connectFirestore();
+  await connectSupabase();
 
   const server = createApp().listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
@@ -16,7 +16,7 @@ async function start() {
   async function shutdown(signal) {
     console.log(`${signal} received, shutting down.`);
     server.close(async () => {
-      await disconnectFirestore();
+      await disconnectSupabase();
       process.exit(0);
     });
   }
@@ -31,9 +31,7 @@ if (process.env.VERCEL !== "1" && import.meta.url === invokedPath) {
   start().catch((error) => {
     console.error("Failed to start API:", error.message);
 
-    if (error.code === 5 || error.code === 7 || error.code === 16) {
-      console.error("Check Firestore is enabled and Firebase Admin credentials are configured for this project.");
-    }
+    console.error("Check SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and the hcm_records SQL migration.");
 
     process.exit(1);
   });

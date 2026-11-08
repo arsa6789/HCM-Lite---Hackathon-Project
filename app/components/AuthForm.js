@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { authPersistenceReady, firebaseAuth, firebaseConfigured } from "../lib/firebase";
+import { supabase, supabaseConfigured } from "../lib/supabase";
 
 function authErrorMessage(error) {
   const code = error?.code ?? "";
-  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-    return "Hey, please check this: your email address or password.";
-  }
-  if (code === "auth/email-already-in-use") return "Hey, please check this: that email address is already registered.";
-  if (code === "auth/weak-password") return "Hey, please check this: choose a password with at least 8 characters.";
-  if (code === "auth/invalid-email") return "Hey, please check this: enter a valid email address.";
-  if (code === "auth/network-request-failed") return "Sorry, the sign-in service is sleeping or unavailable. Please try again shortly.";
-  return "Sorry, sign-in could not be completed. Please try again.";
+  if (code === "invalid_credentials" || code === "user_not_found") return "Please check your email address and password.";
+  if (code === "email_not_confirmed") return "Please confirm your email address before signing in.";
+  if (["email_exists", "user_already_exists"].includes(code)) return "That email address is already registered.";
+  if (code === "weak_password") return "Choose a stronger password with at least 8 characters.";
+  if (error?.message?.includes("Supabase is not configured")) return error.message;
+  if (error?.status === 0 || error?.name === "AuthRetryableFetchError") return "The sign-in service is unavailable. Please try again shortly.";
+  return "Sign-in could not be completed. Please check your details and try again.";
 }
 
 export default function AuthForm({ onAuthenticated, mode: externalMode, setMode: setExternalMode }) {
@@ -36,20 +34,24 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
     setLoading(true);
     setMessage(null);
     try {
-      if (!firebaseConfigured || !firebaseAuth) {
-        throw new Error("Firebase is not configured. Add the NEXT_PUBLIC_FIREBASE_* settings to .env.local.");
+      if (!supabaseConfigured || !supabase) {
+        throw new Error("Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local.");
       }
-      await authPersistenceReady;
       if (isLogin) {
-        const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
-        // Refresh immediately so newly seeded Firebase custom claims (such as
-        // the admin role) are included before the console calls /auth/me.
-        await credential.user.getIdToken(true);
-        onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
+        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+        onAuthenticated({ user: { id: data.user.id, email: data.user.email, role: "employee" } });
         return;
       }
-      const credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-      onAuthenticated({ user: { id: credential.user.uid, email: credential.user.email, role: "employee" } });
+      const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+      if (error) throw error;
+      if (!data.session) {
+        setMessage({ type: "success", text: "Account created. Check your email to confirm it, then sign in." });
+        setMode("login");
+        setPassword("");
+        return;
+      }
+      onAuthenticated({ user: { id: data.user.id, email: data.user.email, role: "employee" } });
       setMessage({ type: "success", text: "Account created. Your workspace is ready." });
       setMode("login");
       setPassword("");
