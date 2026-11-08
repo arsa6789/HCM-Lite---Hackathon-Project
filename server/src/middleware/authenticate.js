@@ -10,7 +10,13 @@ export async function authenticate(req, res, next) {
     if (!token) throw new ApiError(401, "Authentication required.");
 
     const { data, error } = await getSupabaseAdmin().auth.getUser(token);
-    if (error || !data?.user) throw new ApiError(401, "Invalid or expired access token.");
+    if (error || !data?.user) {
+      console.warn("[hcm-auth] Supabase rejected API bearer token", {
+        status: error?.status ?? null,
+        code: error?.code ?? null,
+      });
+      throw new ApiError(401, "Invalid or expired access token.");
+    }
     const authUser = data.user;
     let account = await User.findById(authUser.id);
     if (!account) {

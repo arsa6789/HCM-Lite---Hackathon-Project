@@ -44,6 +44,13 @@ async function proxy(request, context) {
 
   try {
     const upstream = await fetch(upstreamUrl, init);
+    if (path.length === 2 && path[0] === "auth" && path[1] === "me") {
+      console.info("[hcm-api-proxy] auth/me", {
+        bearerForwarded: headers.has("authorization"),
+        status: upstream.status,
+        contentType: upstream.headers.get("content-type"),
+      });
+    }
     const responseHeaders = new Headers({ "cache-control": "no-store" });
     for (const name of ["content-type", "content-disposition", "content-length"]) {
       const value = upstream.headers.get(name);

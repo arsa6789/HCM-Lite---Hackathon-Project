@@ -19,7 +19,11 @@ export function userFacingError(error) {
   return "This request could not be completed. Please try again.";
 }
 
-async function authHeaders(headers = {}) {
+async function authHeaders(headers = {}, accessToken) {
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+    return headers;
+  }
   const { data, error } = await supabase?.auth.getSession() ?? {};
   if (error) {
     const failure = new Error("Your session could not be validated. Please sign in again.");
@@ -53,8 +57,8 @@ function makeNetworkError() {
 }
 
 export async function apiRequest(path, options = {}) {
-  const { method = "GET", body } = options;
-  const headers = await authHeaders(body === undefined ? {} : { "Content-Type": "application/json" });
+  const { method = "GET", body, accessToken } = options;
+  const headers = await authHeaders(body === undefined ? {} : { "Content-Type": "application/json" }, accessToken);
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {

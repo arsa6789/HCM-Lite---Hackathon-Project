@@ -43,9 +43,9 @@ export default function ConsoleLayout({ children }) {
         return;
       }
       try {
-        const session = await apiRequest("/auth/me");
+        const profile = await apiRequest("/auth/me", { accessToken: session.access_token });
         if (!active) return;
-        setUser(session.user);
+        setUser(profile.user);
       } catch (error) {
         console.error("Could not validate the API session:", error);
         router.replace("/login?error=session");
