@@ -9,6 +9,7 @@ function authErrorMessage(error) {
   if (code === "email_not_confirmed") return "Please confirm your email address before signing in.";
   if (["email_exists", "user_already_exists"].includes(code)) return "That email address is already registered.";
   if (code === "weak_password") return "Choose a stronger password with at least 8 characters.";
+  if (/redirect.*(?:not allowed|not whitelisted)/i.test(error?.message ?? "")) return "Email confirmation is not configured for this site. Add this site's /login URL under Supabase Authentication → URL Configuration.";
   if (error?.message?.includes("Supabase is not configured")) return error.message;
   if (error?.status === 0 || error?.name === "AuthRetryableFetchError") return "The sign-in service is unavailable. Please try again shortly.";
   return "Sign-in could not be completed. Please check your details and try again.";
@@ -43,7 +44,11 @@ export default function AuthForm({ onAuthenticated, mode: externalMode, setMode:
         onAuthenticated({ user: { id: data.user.id, email: data.user.email, role: "employee" } });
         return;
       }
-      const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/login` },
+      });
       if (error) throw error;
       if (!data.session) {
         setMessage({ type: "success", text: "Account created. Check your email to confirm it, then sign in." });

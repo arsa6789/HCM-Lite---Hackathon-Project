@@ -17,7 +17,8 @@ The record adapter currently loads each collection into the API process before a
 2. In **SQL Editor**, run [`supabase/migrations/202611080001_hcm_records.sql`](supabase/migrations/202611080001_hcm_records.sql).
 3. In **Project Settings → API**, copy the project URL and public anon key for the web app. Copy the service-role key for the API only.
 4. In **Authentication → Providers**, enable Email. If email confirmations are enabled, users need to confirm before signing in; the signup form displays that flow.
-5. Add the local environment files below. Do not commit them.
+5. In **Authentication → URL Configuration**, set the Site URL to the deployed app URL and add the app's `/login` redirect to the allow list. Signup explicitly redirects to the current origin's `/login`; keep `http://localhost:3000/login` allowed for local development and add the deployed preview URL when testing previews.
+6. Add the local environment files below. Do not commit them.
 
 ### Web app: `.env.local` at repository root
 
@@ -50,6 +51,16 @@ npm run dev
 ```
 
 The development script starts the Next.js app and Express API. Open `http://localhost:3000`; the API health check is `http://localhost:4000/health`. You can also run them separately using `npm run dev:web` and `npm run api`.
+
+## Vercel development preview
+
+The Express API preview is protected by Vercel Authentication. The Next.js preview proxies API calls through `app/api/backend/[...path]/route.js`, which forwards the Supabase bearer token and adds a Vercel protection-bypass secret server-side. Configure these variables on the **frontend Vercel project**, for the `development` Preview branch only:
+
+- `NEXT_PUBLIC_API_URL=/api/backend`
+- `HCM_API_ORIGIN=https://<the-development-API-preview-host>`
+- `HCM_API_VERCEL_BYPASS_SECRET=<server-only Vercel automation bypass secret>` as a **Sensitive** variable. Never prefix it with `NEXT_PUBLIC_` or put it in the repository.
+
+This keeps the browser-to-frontend request same-origin and does not expose the bypass secret to the browser. The Express API continues to validate Supabase access tokens and enforce the app's role checks.
 
 ## First admin account
 
