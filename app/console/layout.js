@@ -108,7 +108,7 @@ export default function ConsoleLayout({ children }) {
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation" className="main-nav">
           {items.map(([key, label]) => (
-            <Link key={key} href={`/console/${key}`} className={`nav-link ${current === key ? "nav-active" : ""}`} onClick={() => setMenuOpen(false)}>
+            <Link key={key} href={`/console/${key}`} aria-current={current === key ? "page" : undefined} className={`nav-link ${current === key ? "nav-active" : ""}`} onClick={() => setMenuOpen(false)}>
               <span className={`nav-glyph glyph-${key}`} aria-hidden="true" />{label}
             </Link>
           ))}
@@ -121,9 +121,9 @@ export default function ConsoleLayout({ children }) {
       {menuOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
       <div className="main-column">
         <header className="topbar">
-          <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">☰</button>
+          <button className="menu-toggle" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen}>☰</button>
           <div className="breadcrumbs"><span>Workspace</span><b>/</b><strong>{title}</strong></div>
-          <div className="topbar-right"><span className="status-dot" /> API connected <span className="topbar-date">{new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date())}</span><div className="notification-anchor"><button className="notification-toggle" aria-label={`Notifications, ${notifications?.unread ?? 0} unread`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(!notificationsOpen)}>♧{notifications?.unread > 0 && <i>{notifications.unread > 9 ? "9+" : notifications.unread}</i>}</button>{notificationsOpen && <div className="notification-popover"><header><strong>Notifications</strong>{notifications?.unread > 0 && <button onClick={markAllNotificationsRead}>Mark all read</button>}</header>{notifications?.notifications?.length ? notifications.notifications.map((item) => <button key={item.id} className={`notification-item ${item.read ? "" : "notification-unread"}`} onClick={() => markNotificationRead(item.id)}><strong>{item.title}</strong><span>{item.body}</span><small>{new Date(item.createdAt).toLocaleString()}</small></button>) : <p className="notification-empty">You’re all caught up.</p>}</div>}</div></div>
+          <div className="topbar-right"><span className="status-dot" /> API connected <span className="topbar-date">{new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date())}</span><div className="notification-anchor"><button className="notification-toggle" aria-label={`Notifications, ${notifications?.unread ?? 0} unread`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(!notificationsOpen)}>♧{notifications?.unread > 0 && <i>{notifications.unread > 9 ? "9+" : notifications.unread}</i>}</button>{notificationsOpen && <div className="notification-popover"><header><strong>Notifications</strong>{notifications?.unread > 0 && <button onClick={markAllNotificationsRead}>Mark all read</button>}</header>{notifications?.notifications?.length ? notifications.notifications.map((item) => <Link key={item.id} href={item.link?.startsWith("/console") ? item.link : "/console/dashboard"} className={`notification-item ${item.read ? "" : "notification-unread"}`} onClick={() => { void markNotificationRead(item.id); setNotificationsOpen(false); }}><strong>{item.title}</strong><span>{item.body}</span><small>{new Date(item.createdAt).toLocaleString()}</small></Link>) : <p className="notification-empty">You’re all caught up.</p>}</div>}</div></div>
         </header>
         <main className="page-content">{children}</main>
       </div>

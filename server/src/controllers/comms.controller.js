@@ -4,11 +4,16 @@ import User from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { assertDocumentId } from "../utils/validate.js";
-import { sanitizeMultiline, sanitizeText } from "../utils/sanitize.js";
 import { ROLES } from "../constants/roles.js";
 import { audit } from "../utils/audit.js";
 import { notifyUsers } from "../utils/notify.js";
 import { parsePagination } from "../utils/validate.js";
+import {
+  canManageAnnouncement,
+  normalizeAnnouncementAudience,
+  normalizeAnnouncementContent,
+  normalizeAnnouncementUpdate,
+} from "../utils/announcementRules.js";
 
 function serializeAnnouncement(item) {
   return {
@@ -83,33 +88,8 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Only admin and HR can post announcements.");
   }
 
-  const title = sanitizeText(req.body?.title, 150);
-  const body = sanitizeMultiline(req.body?.body, 4000);
-
-  if (!title || !body) {
-    throw new ApiError(400, "Title and body are required.");
-  }
-
-  const type = req.body?.audience?.type ?? "all";
-
-  if (!["all", "role", "department"].includes(type)) {
-    throw new ApiError(400, "Invalid audience type.");
-  }
-
-  const audience = { type, role: null, departmentId: null };
-
-  if (type === "role") {
-    if (!["admin", "hr", "employee"].includes(req.body?.audience?.role)) {
-      throw new ApiError(400, "audience.role is required for role audiences.");
-    }
-
-    audience.role = req.body.audience.role;
-  }
-
-  if (type === "department") {
-    assertDocumentId(req.body?.audience?.departmentId, "audience.departmentId");
-    audience.departmentId = req.body.audience.departmentId;
-  }
+  const { title, body } = normalizeAnnouncementContent(req.body?.title, req.body?.body);
+  const audience = normalizeAnnouncementAudience(req.body?.audience);
 
   const announcement = await Announcement.create({
     title,
@@ -139,21 +119,11 @@ export const updateAnnouncement = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Announcement not found.");
   }
 
-  if (req.user.role !== ROLES.ADMIN && String(announcement.createdBy) !== req.user.id) {
-    throw new ApiError(403, "You can only edit your own announcements.");
+  if (!canManageAnnouncement(req.user, announcement)) {
+    throw new ApiError(403, "Only admin or the authoring HR user can manage this announcement.");
   }
 
-  if (req.body?.title !== undefined) {
-    announcement.title = sanitizeText(req.body.title, 150);
-  }
-
-  if (req.body?.body !== undefined) {
-    announcement.body = sanitizeMultiline(req.body.body, 4000);
-  }
-
-  if (req.body?.pinned !== undefined) {
-    announcement.pinned = Boolean(req.body.pinned);
-  }
+  Object.assign(announcement, normalizeAnnouncementUpdate(req.body));
 
   await announcement.save();
   await audit(req.user, "announcement.update", "announcement", String(announcement._id), { title: announcement.title }, req);
@@ -169,8 +139,8 @@ export const deleteAnnouncement = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Announcement not found.");
   }
 
-  if (req.user.role !== ROLES.ADMIN && String(announcement.createdBy) !== req.user.id) {
-    throw new ApiError(403, "You can only delete your own announcements.");
+  if (!canManageAnnouncement(req.user, announcement)) {
+    throw new ApiError(403, "Only admin or the authoring HR user can manage this announcement.");
   }
 
   await announcement.deleteOne();

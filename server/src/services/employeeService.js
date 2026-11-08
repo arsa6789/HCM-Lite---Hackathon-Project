@@ -1,4 +1,6 @@
 import User from "../models/User.js";
+import Department from "../models/Department.js";
+import Designation from "../models/Designation.js";
 import { ROLES } from "../constants/roles.js";
 import { EMPLOYMENT_STATUS } from "../constants/statuses.js";
 import { ApiError } from "../utils/apiError.js";
@@ -73,10 +75,17 @@ export async function getProfile360(actor, userId) {
   }
 
   const year = String(new Date().getFullYear());
-  const { summary } = await attendanceSummary(actor, String(user._id), `${year}-01-01`, `${year}-12-31`);
-  const balances = await balancesFor(actor, String(user._id), year);
+  const [summaryResult, balances, department, designation] = await Promise.all([
+    attendanceSummary(actor, String(user._id), `${year}-01-01`, `${year}-12-31`),
+    balancesFor(actor, String(user._id), year),
+    user.departmentId ? Department.findById(user.departmentId).select("name").lean() : null,
+    user.designationId ? Designation.findById(user.designationId).select("name").lean() : null,
+  ]);
+  const profile = serializeProfile(user, actor);
+  profile.departmentName = department?.name ?? null;
+  profile.designationName = designation?.name ?? null;
 
-  return { user: serializeProfile(user, actor), attendanceSummary: summary, leaveBalances: balances };
+  return { user: profile, attendanceSummary: summaryResult.summary, leaveBalances: balances };
 }
 
 export async function headcountForAi(actor) {
