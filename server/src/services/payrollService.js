@@ -8,7 +8,7 @@ import { ATTENDANCE_STATUS, LEAVE_STATUS, PAYROLL_STATUS, EMPLOYMENT_STATUS } fr
 import { ROLES } from "../constants/roles.js";
 import { ApiError } from "../utils/apiError.js";
 import { round2, computePayrollLine, countPayrollAttendance } from "../utils/payrollEngine.js";
-import { monthRange } from "../utils/dates.js";
+import { validatePayrollMonth } from "../utils/payrollValidation.js";
 import { workingDaysBetween } from "./orgService.js";
 import { serializePayrollRun, serializePayrollLine } from "../access/policies.js";
 import { notifyUsers } from "../utils/notify.js";
@@ -30,11 +30,7 @@ export async function createRun(actor, month) {
     throw new ApiError(403, "Only admin or HR can prepare payroll runs.");
   }
 
-  const range = monthRange(month);
-
-  if (!range) {
-    throw new ApiError(400, "Month must be in YYYY-MM format.");
-  }
+  const range = validatePayrollMonth(month);
 
   const org = await getOrg();
 

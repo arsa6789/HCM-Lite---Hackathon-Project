@@ -1,4 +1,4 @@
-import { defineModel } from "./firestoreModel.js";
+import { defineModel } from "./recordModel.js";
 
 const Organization = defineModel("organizations", {
   documentId: "singleton",

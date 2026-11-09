@@ -6,7 +6,7 @@ import { dashboardSummaryForAi } from "../dashboardService.js";
 import { headcountForAi, searchEmployeesForAi } from "../employeeService.js";
 import { attendanceSummaryForAi } from "../attendanceService.js";
 import { leaveSummaryForAi, myLeaveBalanceForAi, balancesFor } from "../leaveService.js";
-import { payrollSummaryForAi } from "../payrollService.js";
+import { payrollSummaryForAi, payslipsFor } from "../payrollService.js";
 import LeaveType from "../../models/LeaveType.js";
 import { ROLES } from "../../constants/roles.js";
 
@@ -94,7 +94,7 @@ export const TOOL_DEFINITIONS = [
     type: "function",
     function: {
       name: "get_payroll_summary",
-      description: "Get payroll run summaries. Admins receive amounts; HR/employees receive run metadata only.",
+      description: "Get payroll information within role scope. Admins receive amounts, HR receives run metadata only, and employees receive only their own published payslips.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },
@@ -276,6 +276,9 @@ export async function executeTool(actor, name, args = {}) {
       }
 
       case "get_payroll_summary":
+        if (actor.role === ROLES.EMPLOYEE) {
+          return { runs: await payslipsFor(actor) };
+        }
         return await payrollSummaryForAi(actor);
 
       case "search_employees":

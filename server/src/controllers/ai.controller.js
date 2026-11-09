@@ -8,12 +8,19 @@ import { getOrg } from "../services/orgService.js";
 import { sanitizeForLlm } from "../utils/sanitize.js";
 import AiLog from "../models/AiLog.js";
 import { audit } from "../utils/audit.js";
+import { answerWithSiteFallback } from "../services/ai/fallback.js";
 
 const MAX_ROUNDS = 3;
 const MAX_HISTORY = 10;
 
 export const status = asyncHandler(async (req, res) => {
-  res.json({ enabled: aiEnabled(), model: env.aiModel });
+  const modelMode = aiEnabled();
+  res.json({
+    enabled: true,
+    mode: modelMode ? "model" : "site",
+    provider: modelMode ? "openai-compatible" : "built-in",
+    model: modelMode ? env.aiModel : "HCM Lite site assistant",
+  });
 });
 
 function parseHistory(input) {
@@ -31,10 +38,6 @@ function parseHistory(input) {
 }
 
 export const chat = asyncHandler(async (req, res) => {
-  if (!aiEnabled()) {
-    throw new ApiError(503, "The AI assistant is not configured. Set AI_API_KEY in the server environment.");
-  }
-
   const history = parseHistory(req.body?.messages);
 
   if (history[history.length - 1].role !== "user") {
@@ -42,6 +45,19 @@ export const chat = asyncHandler(async (req, res) => {
   }
 
   const actor = req.user;
+  if (!aiEnabled()) {
+    let ok = false;
+    const toolsUsed = [];
+    try {
+      const result = await answerWithSiteFallback(actor, history[history.length - 1].content);
+      toolsUsed.push(...result.toolsUsed);
+      ok = true;
+      return res.json({ reply: sanitizeForLlm(result.reply, 4000), draft: null, toolsUsed });
+    } finally {
+      await logChat(actor, toolsUsed, ok);
+    }
+  }
+
   const org = await getOrg();
   const messages = [{ role: "system", content: buildSystemPrompt({ actor, org }) }, ...history];
   const toolsUsed = [];

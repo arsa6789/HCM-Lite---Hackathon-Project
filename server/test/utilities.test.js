@@ -9,6 +9,7 @@ import { eachDayKey, haversineMeters, isValidDayKey, minutesBetween, monthRange 
 import { createRateLimiter } from "../src/utils/rateLimit.js";
 import { sanitizeForLlm, sanitizeText, metaForAudit } from "../src/utils/sanitize.js";
 import { computePayrollLine, computeProgressiveTax, countPayrollAttendance } from "../src/utils/payrollEngine.js";
+import { summarizeAttendance } from "../src/utils/dashboardMetrics.js";
 import { buildPayslipPdf } from "../src/utils/pdf.js";
 
 test("salary serializers redact amounts from every HR read path", () => {
@@ -61,6 +62,29 @@ test("payroll treats missing working-day attendance as absent and leaves as leav
     absentDays: 1,
     paidLeaveDays: 0,
     unpaidLeaveDays: 0,
+  });
+});
+
+test("dashboard counts missing working-day records as absent and excludes approved leave from attendance rate", () => {
+  const result = summarizeAttendance([
+    { status: "present" },
+    { status: "late" },
+    { status: "half_day" },
+    { status: "leave" },
+    { status: "absent" },
+  ], 5);
+
+  assert.deepEqual(result.counts, { present: 1, late: 1, halfDay: 1, absent: 1, leave: 1 });
+  assert.equal(result.attendanceRate, 62.5);
+  assert.equal(result.lateRate, 25);
+
+  const missing = summarizeAttendance([{ status: "present" }], 3);
+  assert.equal(missing.counts.absent, 2);
+  assert.equal(missing.attendanceRate, 33.3);
+  assert.deepEqual(summarizeAttendance([], 0), {
+    counts: { present: 0, late: 0, halfDay: 0, absent: 0, leave: 0 },
+    attendanceRate: 0,
+    lateRate: 0,
   });
 });
 

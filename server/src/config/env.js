@@ -4,11 +4,8 @@ import { fileURLToPath } from "node:url";
 dotenv.config({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
 
 const nodeEnv = process.env.NODE_ENV ?? "development";
-// Do not throw while this module is being imported. On serverless platforms that
-// would crash the function before Express has a chance to add CORS headers (or
-// return a useful JSON error). Firebase configuration is checked at the point
-// where the Admin SDK is first needed instead.
-const firebaseProjectId = process.env.FIREBASE_PROJECT_ID?.trim() ?? "";
+// Backend credentials are checked only when a Supabase operation is performed,
+// allowing health and error responses to remain available when misconfigured.
 
 const port = Number(process.env.PORT ?? 4000);
 
@@ -26,11 +23,8 @@ function parseOrigins(value) {
 export const env = Object.freeze({
   nodeEnv,
   port,
-  firebaseProjectId,
-  firebaseDatabaseId: process.env.FIREBASE_DATABASE_ID ?? "",
-  firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? "",
-  firebaseServiceAccountBase64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
-  firebaseServiceAccountPath: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? "",
+  supabaseUrl: process.env.SUPABASE_URL?.trim() ?? "",
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "",
   corsOrigins: parseOrigins(process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:3001"),
   seedAdminUid: process.env.SEED_ADMIN_UID ?? "",
   aiApiKey: process.env.AI_API_KEY ?? "",

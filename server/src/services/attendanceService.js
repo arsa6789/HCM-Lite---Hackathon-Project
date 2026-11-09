@@ -11,6 +11,7 @@ import { scopeFilter, isSelf } from "../access/scope.js";
 import { ROLES } from "../constants/roles.js";
 import { audit } from "../utils/audit.js";
 import { notifyUsers, notifyAdminsAndHrs } from "../utils/notify.js";
+import { validateCorrectionInput } from "../utils/attendanceValidation.js";
 
 function actorIsPrivileged(actor) {
   return actor.role === ROLES.ADMIN || actor.role === ROLES.HR;
@@ -256,7 +257,7 @@ export async function attendanceSummary(actor, targetUserId, fromKey, toKey) {
   return { summary, records };
 }
 
-export async function requestCorrection(actor, attendanceId, { reason, newCheckInAt, newCheckOutAt }) {
+export async function requestCorrection(actor, attendanceId, payload = {}) {
   const record = await Attendance.findById(attendanceId);
 
   if (!record) {
@@ -271,11 +272,13 @@ export async function requestCorrection(actor, attendanceId, { reason, newCheckI
     throw new ApiError(409, "A correction request is already pending for this record.");
   }
 
+  const { reason, newCheckInAt, newCheckOutAt } = validateCorrectionInput(payload, record);
+
   record.correction = {
     status: CORRECTION_STATUS.PENDING,
-    reason: String(reason ?? "").slice(0, 500),
-    newCheckInAt: newCheckInAt ? new Date(newCheckInAt) : null,
-    newCheckOutAt: newCheckOutAt ? new Date(newCheckOutAt) : null,
+    reason,
+    newCheckInAt,
+    newCheckOutAt,
     requestedAt: new Date(),
     reviewNote: "",
     reviewedBy: null,

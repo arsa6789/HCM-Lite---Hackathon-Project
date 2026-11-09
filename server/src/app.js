@@ -52,7 +52,7 @@ export function createApp() {
     res.json({
       status: "ok",
       uptime: process.uptime(),
-      firebaseConfigured: Boolean(env.firebaseProjectId),
+      supabaseConfigured: Boolean(env.supabaseUrl && env.supabaseServiceRoleKey),
     });
   });
 

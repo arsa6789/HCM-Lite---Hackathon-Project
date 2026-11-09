@@ -1,4 +1,4 @@
-import { defineModel } from "./firestoreModel.js";
+import { defineModel } from "./recordModel.js";
 import Department from "./Department.js";
 import Designation from "./Designation.js";
 

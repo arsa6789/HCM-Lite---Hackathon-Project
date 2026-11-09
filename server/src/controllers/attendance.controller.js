@@ -76,7 +76,7 @@ export const getBoard = asyncHandler(async (req, res) => {
 export const postCorrection = asyncHandler(async (req, res) => {
   assertDocumentId(req.params.id, "attendance id");
   const record = await requestCorrection(req.user, req.params.id, {
-    reason: sanitizeText(req.body?.reason, 500),
+    reason: req.body?.reason,
     newCheckInAt: req.body?.newCheckInAt,
     newCheckOutAt: req.body?.newCheckOutAt,
   });
